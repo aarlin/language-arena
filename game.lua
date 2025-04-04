@@ -37,8 +37,8 @@ function Game:setupControllers()
                 {love.math.random(), love.math.random(), love.math.random()},
                 {
                     controller = i,
-                    left = "rightx",  -- Changed to right stick
-                    right = "rightx", -- Changed to right stick
+                    left = "leftx",  -- Use left stick for movement
+                    right = "leftx", -- Use left stick for movement
                     jump = "a",      -- A button on Switch
                     down = "b",      -- B button on Switch
                     punch = "x",     -- X button on Switch
@@ -107,7 +107,7 @@ function Game:gamepadpressed(joystick, button)
         elseif button == "start" then
             love.event.quit()
         end
-    else
+    elseif self.state == "playing" then
         -- Find the player with this controller and pass the button press
         for _, controller in ipairs(self.controllers) do
             if controller.joystick == joystick then

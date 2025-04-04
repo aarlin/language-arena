@@ -1,6 +1,18 @@
 local Player = {}
 Player.__index = Player
 
+-- Animation states
+local ANIMATION_STATES = {
+    IDLE = "idle",
+    WALK = "walk",
+    RUN = "run",
+    JUMP = "jump",
+    CROUCH = "crouch",
+    SLIDE = "slide",
+    KO = "ko",
+    VICTORY = "victory"
+}
+
 function Player.new(x, y, color, controls)
     local self = setmetatable({}, Player)
     self.x = x
@@ -23,7 +35,131 @@ function Player.new(x, y, color, controls)
     self.score = 0
     self.controller = nil
     
+    -- Animation properties
+    self.currentAnimation = ANIMATION_STATES.IDLE
+    self.animations = {}
+    self.animationFrame = 1
+    self.animationTimer = 0
+    self.facingRight = true
+    
+    -- Load animations
+    self:loadAnimations()
+    
     return self
+end
+
+function Player:loadAnimations()
+    -- Load idle animation
+    self.animations[ANIMATION_STATES.IDLE] = {
+        frames = {},
+        frameTime = 0.15,  -- Slightly slower for idle
+        currentFrame = 1,
+        timer = 0
+    }
+    -- Load idle animation frames (using odd-numbered frames)
+    local idleFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
+    for _, frameNum in ipairs(idleFrames) do
+        local frameNumber = string.format("%04d", frameNum)
+        table.insert(self.animations[ANIMATION_STATES.IDLE].frames, 
+            love.graphics.newImage("assets/raccoon/idle/idle" .. frameNumber .. ".png"))
+    end
+    
+    -- Load walk animation
+    self.animations[ANIMATION_STATES.WALK] = {
+        frames = {},
+        frameTime = 0.1,
+        currentFrame = 1,
+        timer = 0
+    }
+    -- Load walk animation frames (using odd-numbered frames)
+    local walkFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
+    for _, frameNum in ipairs(walkFrames) do
+        local frameNumber = string.format("%04d", frameNum)
+        table.insert(self.animations[ANIMATION_STATES.WALK].frames,
+            love.graphics.newImage("assets/raccoon/walk/walk" .. frameNumber .. ".png"))
+    end
+    
+    -- Load run animation
+    self.animations[ANIMATION_STATES.RUN] = {
+        frames = {},
+        frameTime = 0.08,  -- Faster than walk
+        currentFrame = 1,
+        timer = 0
+    }
+    -- Load run animation frames (using odd-numbered frames)
+    local runFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+    for _, frameNum in ipairs(runFrames) do
+        local frameNumber = string.format("%04d", frameNum)
+        table.insert(self.animations[ANIMATION_STATES.RUN].frames,
+            love.graphics.newImage("assets/raccoon/run/run" .. frameNumber .. ".png"))
+    end
+    
+    -- Load jump animation
+    self.animations[ANIMATION_STATES.JUMP] = {
+        frames = {},
+        frameTime = 0.1,
+        currentFrame = 1,
+        timer = 0
+    }
+    -- Load jump animation frames (using odd-numbered frames)
+    local jumpFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
+    for _, frameNum in ipairs(jumpFrames) do
+        local frameNumber = string.format("%04d", frameNum)
+        table.insert(self.animations[ANIMATION_STATES.JUMP].frames,
+            love.graphics.newImage("assets/raccoon/jump/jump" .. frameNumber .. ".png"))
+    end
+    
+    -- Load crouch animation
+    self.animations[ANIMATION_STATES.CROUCH] = {
+        frames = {},
+        frameTime = 0.1,
+        currentFrame = 1,
+        timer = 0
+    }
+    -- Load crouch animation frames (using odd-numbered frames)
+    local crouchFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+    for _, frameNum in ipairs(crouchFrames) do
+        local frameNumber = string.format("%04d", frameNum)
+        table.insert(self.animations[ANIMATION_STATES.CROUCH].frames,
+            love.graphics.newImage("assets/raccoon/crouch/crouch" .. frameNumber .. ".png"))
+    end
+    
+    -- Load victory animation
+    self.animations[ANIMATION_STATES.VICTORY] = {
+        frames = {},
+        frameTime = 0.15,
+        currentFrame = 1,
+        timer = 0
+    }
+    -- Load victory animation frames (using odd-numbered frames)
+    local victoryFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27}
+    for _, frameNum in ipairs(victoryFrames) do
+        local frameNumber = string.format("%04d", frameNum)
+        table.insert(self.animations[ANIMATION_STATES.VICTORY].frames,
+            love.graphics.newImage("assets/raccoon/victory-dance/victory-dance" .. frameNumber .. ".png"))
+    end
+end
+
+function Player:updateAnimation(dt)
+    local anim = self.animations[self.currentAnimation]
+    if not anim then return end
+    
+    anim.timer = anim.timer + dt
+    if anim.timer >= anim.frameTime then
+        anim.timer = 0
+        anim.currentFrame = anim.currentFrame + 1
+        if anim.currentFrame > #anim.frames then
+            anim.currentFrame = 1
+        end
+    end
+end
+
+function Player:setAnimation(animation)
+    if self.currentAnimation ~= animation then
+        self.currentAnimation = animation
+        self.animations[animation].currentFrame = 1
+        self.animations[animation].timer = 0
+    end
 end
 
 function Player:setController(joystick)
@@ -38,6 +174,7 @@ function Player:update(dt)
         self.knockbackTime = self.knockbackTime - dt
         self.x = self.x + self.knockbackVelocity.x * dt
         self.y = self.y + self.knockbackVelocity.y * dt
+        self:setAnimation(ANIMATION_STATES.KO)
         return
     end
     
@@ -46,24 +183,41 @@ function Player:update(dt)
         self.punchCooldown = self.punchCooldown - dt
     end
     
-    -- Movement using right stick
+    -- Movement using left stick
     local axisX = self.controller:getAxis(self.controls.left)
-    local axisY = self.controller:getAxis("righty") -- Add vertical movement
+    local axisY = self.controller:getAxis("lefty")
     
     -- Invert the axis values for proper movement
     axisX = -axisX
     axisY = -axisY
     
+    -- Update facing direction
+    if axisX > 0.2 then
+        self.facingRight = true
+    elseif axisX < -0.2 then
+        self.facingRight = false
+    end
+    
     -- Horizontal movement
     if math.abs(axisX) > 0.2 then  -- Dead zone
         self.velocity.x = axisX * self.speed
+        -- Use run animation if moving fast
+        if math.abs(axisX) > 0.8 then
+            self:setAnimation(ANIMATION_STATES.RUN)
+        else
+            self:setAnimation(ANIMATION_STATES.WALK)
+        end
     else
         self.velocity.x = 0
+        self:setAnimation(ANIMATION_STATES.IDLE)
     end
     
     -- Vertical movement (only when not grounded)
     if not self.isGrounded and math.abs(axisY) > 0.2 then
         self.velocity.y = axisY * self.speed
+        self:setAnimation(ANIMATION_STATES.JUMP)
+    elseif axisY < -0.2 and self.isGrounded then
+        self:setAnimation(ANIMATION_STATES.CROUCH)
     end
     
     -- Apply gravity
@@ -80,6 +234,9 @@ function Player:update(dt)
         self.isGrounded = true
         self.hasDoubleJumped = false
     end
+    
+    -- Update animation
+    self:updateAnimation(dt)
 end
 
 function Player:gamepadpressed(button)
@@ -100,13 +257,25 @@ function Player:gamepadpressed(button)
 end
 
 function Player:draw()
-    love.graphics.setColor(self.color)
-    love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+    local anim = self.animations[self.currentAnimation]
+    if not anim or not anim.frames[anim.currentFrame] then return end
+    
+    local frame = anim.frames[anim.currentFrame]
+    local scale = 0.35  -- Adjusted scale for better fit
+    
+    -- Draw the raccoon sprite
+    love.graphics.setColor(1, 1, 1)  -- Reset color to white for sprites
+    if self.facingRight then
+        love.graphics.draw(frame, self.x, self.y, 0, scale, scale)
+    else
+        love.graphics.draw(frame, self.x + frame:getWidth() * scale, self.y, 0, -scale, scale)
+    end
     
     -- Draw punch animation
     if self.isPunching then
         love.graphics.setColor(1, 0, 0)
-        love.graphics.rectangle("fill", self.x + self.width, self.y + self.height/2, 20, 10)
+        love.graphics.rectangle("fill", self.x + (self.facingRight and self.width or -20), 
+            self.y + self.height/2, 20, 10)
     end
     
     -- Draw held box

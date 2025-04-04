@@ -36,13 +36,21 @@ Language Arena is a competitive multiplayer game where players learn Chinese or 
 
 ## Controls
 
-- **Right Analog Stick**: Move character
+- **Left Analog Stick**: Move character (works with both Joy-Cons and Pro Controller)
 - **A Button**: Jump
 - **B Button**: Fast fall
 - **X Button**: Punch
 - **Start Button**: Quit game
 - **A Button (Menu)**: Select Chinese
 - **B Button (Menu)**: Select Japanese
+
+### Controller Support
+- Nintendo Switch Pro Controller
+- Joy-Cons (attached or detached)
+- Xbox Controller
+- PlayStation Controller
+
+Note: When using Joy-Cons, the left Joy-Con's analog stick controls movement. The game automatically detects whether you're using Joy-Cons or a Pro Controller and adjusts the controls accordingly.
 
 ## Game Features
 
