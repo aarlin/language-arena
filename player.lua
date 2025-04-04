@@ -1,5 +1,4 @@
-local Player = {}
-Player.__index = Player
+local logger = require("logger")  -- Import the logger
 
 -- Animation states
 local ANIMATION_STATES = {
@@ -13,293 +12,416 @@ local ANIMATION_STATES = {
     VICTORY = "victory"
 }
 
+-- Player class
+local Player = {}
+Player.__index = Player
+
 function Player.new(x, y, color, controls)
     local self = setmetatable({}, Player)
     self.x = x
     self.y = y
-    self.width = 32
-    self.height = 48
     self.color = color
-    self.controls = controls
+    self.controls = controls or {}
     self.velocity = {x = 0, y = 0}
-    self.speed = 200
-    self.jumpForce = -400
-    self.gravity = 800
-    self.isGrounded = false
-    self.canDoubleJump = false
-    self.hasDoubleJumped = false
+    self.speed = 300
+    self.runSpeed = 600
+    self.jumpForce = -500
+    self.gravity = 1000
+    self.isJumping = false
+    self.isRunning = false
+    self.isSliding = false
+    self.slideTimer = 0
+    self.slideDuration = 0.5
+    self.slideCooldown = 0
+    self.slideCooldownDuration = 3
     self.isPunching = false
-    self.punchCooldown = 0
-    self.knockbackTime = 0
-    self.heldBox = nil
+    self.punchTimer = 0
+    self.punchDuration = 0.2
     self.score = 0
-    self.controller = nil
-    
-    -- Animation properties
-    self.currentAnimation = ANIMATION_STATES.IDLE
-    self.animations = {}
-    self.animationFrame = 1
-    self.animationTimer = 0
+    self.collectedApples = {}
+    self.name = "Player " .. (controls and controls.controller or "Unknown")
     self.facingRight = true
+    self.currentAnimation = ANIMATION_STATES.IDLE
+    self.animationTimer = 0
+    self.animationSpeed = 0.1
+    self.currentFrame = 1
+    self.animations = {}
+    self.width = 48  -- Reduced from 64 to make player smaller
+    self.height = 48 -- Reduced from 64 to make player smaller
     
     -- Load animations
     self:loadAnimations()
+    
+    logger:info("Player created: %s at position (%.2f, %.2f)", self.name, self.x, self.y)
     
     return self
 end
 
 function Player:loadAnimations()
-    -- Load idle animation
-    self.animations[ANIMATION_STATES.IDLE] = {
-        frames = {},
-        frameTime = 0.15,  -- Slightly slower for idle
-        currentFrame = 1,
-        timer = 0
-    }
-    -- Load idle animation frames (using odd-numbered frames)
-    local idleFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
+    -- Initialize animation tables
+    for _, state in pairs(ANIMATION_STATES) do
+        self.animations[state] = {frames = {}}
+    end
+    
+    -- Load idle animation (odd-numbered frames)
+    local idleFrames = {1, 3, 5, 7, 9, 11}
     for _, frameNum in ipairs(idleFrames) do
         local frameNumber = string.format("%04d", frameNum)
-        table.insert(self.animations[ANIMATION_STATES.IDLE].frames, 
-            love.graphics.newImage("assets/raccoon/idle/idle" .. frameNumber .. ".png"))
+        local success, image = pcall(function() 
+            return love.graphics.newImage("assets/raccoon/idle/idle" .. frameNumber .. ".png")
+        end)
+        
+        if success then
+            table.insert(self.animations[ANIMATION_STATES.IDLE].frames, image)
+            logger:debug("Loaded idle animation frame: idle%s.png", frameNumber)
+        else
+            logger:error("Failed to load idle animation frame: idle%s.png - %s", frameNumber, image)
+        end
     end
     
     -- Load walk animation
-    self.animations[ANIMATION_STATES.WALK] = {
-        frames = {},
-        frameTime = 0.1,
-        currentFrame = 1,
-        timer = 0
-    }
-    -- Load walk animation frames (using odd-numbered frames)
-    local walkFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
+    local walkFrames = {1, 2, 3, 4, 5, 6, 7, 8}
     for _, frameNum in ipairs(walkFrames) do
         local frameNumber = string.format("%04d", frameNum)
-        table.insert(self.animations[ANIMATION_STATES.WALK].frames,
-            love.graphics.newImage("assets/raccoon/walk/walk" .. frameNumber .. ".png"))
+        local success, image = pcall(function() 
+            return love.graphics.newImage("assets/raccoon/walk/walk" .. frameNumber .. ".png")
+        end)
+        
+        if success then
+            table.insert(self.animations[ANIMATION_STATES.WALK].frames, image)
+            logger:debug("Loaded walk animation frame: walk%s.png", frameNumber)
+        else
+            logger:error("Failed to load walk animation frame: walk%s.png - %s", frameNumber, image)
+        end
     end
     
     -- Load run animation
-    self.animations[ANIMATION_STATES.RUN] = {
-        frames = {},
-        frameTime = 0.08,  -- Faster than walk
-        currentFrame = 1,
-        timer = 0
-    }
-    -- Load run animation frames (using odd-numbered frames)
-    local runFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+    local runFrames = {1, 2, 3, 4, 5, 6, 7, 8}
     for _, frameNum in ipairs(runFrames) do
         local frameNumber = string.format("%04d", frameNum)
-        table.insert(self.animations[ANIMATION_STATES.RUN].frames,
-            love.graphics.newImage("assets/raccoon/run/run" .. frameNumber .. ".png"))
+        local success, image = pcall(function() 
+            return love.graphics.newImage("assets/raccoon/run/run" .. frameNumber .. ".png")
+        end)
+        
+        if success then
+            table.insert(self.animations[ANIMATION_STATES.RUN].frames, image)
+            logger:debug("Loaded run animation frame: run%s.png", frameNumber)
+        else
+            logger:error("Failed to load run animation frame: run%s.png - %s", frameNumber, image)
+        end
     end
     
     -- Load jump animation
-    self.animations[ANIMATION_STATES.JUMP] = {
-        frames = {},
-        frameTime = 0.1,
-        currentFrame = 1,
-        timer = 0
-    }
-    -- Load jump animation frames (using odd-numbered frames)
-    local jumpFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
+    local jumpFrames = {1, 2, 3, 4}
     for _, frameNum in ipairs(jumpFrames) do
         local frameNumber = string.format("%04d", frameNum)
-        table.insert(self.animations[ANIMATION_STATES.JUMP].frames,
-            love.graphics.newImage("assets/raccoon/jump/jump" .. frameNumber .. ".png"))
+        local success, image = pcall(function() 
+            return love.graphics.newImage("assets/raccoon/jump/jump" .. frameNumber .. ".png")
+        end)
+        
+        if success then
+            table.insert(self.animations[ANIMATION_STATES.JUMP].frames, image)
+            logger:debug("Loaded jump animation frame: jump%s.png", frameNumber)
+        else
+            logger:error("Failed to load jump animation frame: jump%s.png - %s", frameNumber, image)
+        end
     end
     
     -- Load crouch animation
-    self.animations[ANIMATION_STATES.CROUCH] = {
-        frames = {},
-        frameTime = 0.1,
-        currentFrame = 1,
-        timer = 0
-    }
-    -- Load crouch animation frames (using odd-numbered frames)
-    local crouchFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+    local crouchFrames = {1, 2, 3, 4}
     for _, frameNum in ipairs(crouchFrames) do
         local frameNumber = string.format("%04d", frameNum)
-        table.insert(self.animations[ANIMATION_STATES.CROUCH].frames,
-            love.graphics.newImage("assets/raccoon/crouch/crouch" .. frameNumber .. ".png"))
+        local success, image = pcall(function() 
+            return love.graphics.newImage("assets/raccoon/crouch/crouch" .. frameNumber .. ".png")
+        end)
+        
+        if success then
+            table.insert(self.animations[ANIMATION_STATES.CROUCH].frames, image)
+            logger:debug("Loaded crouch animation frame: crouch%s.png", frameNumber)
+        else
+            logger:error("Failed to load crouch animation frame: crouch%s.png - %s", frameNumber, image)
+        end
+    end
+    
+    -- Load slide animation
+    local slideFrames = {}
+    for i = 1, 23 do
+        table.insert(slideFrames, i)
+    end
+    for _, frameNum in ipairs(slideFrames) do
+        local frameNumber = string.format("%04d", frameNum)
+        local success, image = pcall(function() 
+            return love.graphics.newImage("assets/raccoon/slide/slide" .. frameNumber .. ".png")
+        end)
+        
+        if success then
+            table.insert(self.animations[ANIMATION_STATES.SLIDE].frames, image)
+            logger:debug("Loaded slide animation frame: slide%s.png", frameNumber)
+        else
+            logger:error("Failed to load slide animation frame: slide%s.png - %s", frameNumber, image)
+        end
+    end
+    
+    -- Load KO animation
+    local koFrames = {1, 2, 3, 4, 5, 6}
+    for _, frameNum in ipairs(koFrames) do
+        local frameNumber = string.format("%04d", frameNum)
+        local success, image = pcall(function() 
+            return love.graphics.newImage("assets/raccoon/ko/ko" .. frameNumber .. ".png")
+        end)
+        
+        if success then
+            table.insert(self.animations[ANIMATION_STATES.KO].frames, image)
+            logger:debug("Loaded KO animation frame: ko%s.png", frameNumber)
+        else
+            logger:error("Failed to load KO animation frame: ko%s.png - %s", frameNumber, image)
+        end
     end
     
     -- Load victory animation
-    self.animations[ANIMATION_STATES.VICTORY] = {
-        frames = {},
-        frameTime = 0.15,
-        currentFrame = 1,
-        timer = 0
-    }
-    -- Load victory animation frames (using odd-numbered frames)
-    local victoryFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27}
+    local victoryFrames = {1, 2, 3, 4, 5, 6}
     for _, frameNum in ipairs(victoryFrames) do
         local frameNumber = string.format("%04d", frameNum)
-        table.insert(self.animations[ANIMATION_STATES.VICTORY].frames,
-            love.graphics.newImage("assets/raccoon/victory-dance/victory-dance" .. frameNumber .. ".png"))
+        local success, image = pcall(function() 
+            return love.graphics.newImage("assets/raccoon/victory/victory" .. frameNumber .. ".png")
+        end)
+        
+        if success then
+            table.insert(self.animations[ANIMATION_STATES.VICTORY].frames, image)
+            logger:debug("Loaded victory animation frame: victory%s.png", frameNumber)
+        else
+            logger:error("Failed to load victory animation frame: victory%s.png - %s", frameNumber, image)
+        end
     end
 end
 
-function Player:updateAnimation(dt)
-    local anim = self.animations[self.currentAnimation]
-    if not anim then return end
-    
-    anim.timer = anim.timer + dt
-    if anim.timer >= anim.frameTime then
-        anim.timer = 0
-        anim.currentFrame = anim.currentFrame + 1
-        if anim.currentFrame > #anim.frames then
-            anim.currentFrame = 1
+function Player:setController(joystick)
+    self.controller = joystick
+    logger:info("Controller set for player %s: %s", self.name, joystick:getName())
+end
+
+function Player:update(dt)
+    -- Update animation
+    self.animationTimer = self.animationTimer + dt
+    if self.animationTimer >= self.animationSpeed then
+        self.animationTimer = 0
+        self.currentFrame = self.currentFrame + 1
+        if self.currentFrame > #self.animations[self.currentAnimation].frames then
+            self.currentFrame = 1
         end
+    end
+    
+    -- Update slide cooldown
+    if self.slideCooldown > 0 then
+        self.slideCooldown = self.slideCooldown - dt
+    end
+    
+    -- Update slide timer
+    if self.isSliding then
+        self.slideTimer = self.slideTimer + dt
+        if self.slideTimer >= self.slideDuration then
+            self.isSliding = false
+            self.slideTimer = 0
+            self:setAnimation(ANIMATION_STATES.IDLE)
+            logger:debug("Player %s finished sliding", self.name)
+        end
+    end
+    
+    -- Update punch timer
+    if self.isPunching then
+        self.punchTimer = self.punchTimer + dt
+        if self.punchTimer >= self.punchDuration then
+            self.isPunching = false
+            self.punchTimer = 0
+            self:setAnimation(ANIMATION_STATES.IDLE)
+            logger:debug("Player %s finished punching", self.name)
+        end
+    end
+    
+    -- Apply gravity
+    self.velocity.y = self.velocity.y + self.gravity * dt
+    
+    -- Apply velocity
+    self.x = self.x + self.velocity.x * dt
+    self.y = self.y + self.velocity.y * dt
+    
+    -- Screen boundaries
+    if self.x < 0 then
+        self.x = 0
+        self.velocity.x = 0
+    elseif self.x > 1200 - self.width then
+        self.x = 1200 - self.width
+        self.velocity.x = 0
+    end
+    
+    -- Ground collision
+    if self.y > 600 - self.height then
+        self.y = 600 - self.height
+        self.velocity.y = 0
+        self.isJumping = false
+        if self.currentAnimation == ANIMATION_STATES.JUMP then
+            self:setAnimation(ANIMATION_STATES.IDLE)
+        end
+    end
+    
+    -- Handle controller input
+    if self.controller then
+        -- Movement
+        local moveX = self.controller:getGamepadAxis("leftx")
+        if math.abs(moveX) > 0.1 then
+            -- Determine if running
+            local isRunningNow = self.controller:isGamepadDown(self.controls.down)
+            if isRunningNow ~= self.isRunning then
+                self.isRunning = isRunningNow
+                logger:debug("Player %s %s", self.name, self.isRunning and "started running" or "stopped running")
+            end
+            
+            -- Set speed based on running state
+            local currentSpeed = self.isRunning and self.runSpeed or self.speed
+            
+            -- Apply movement
+            self.velocity.x = moveX * currentSpeed
+            
+            -- Set animation based on movement
+            if self.isRunning then
+                self:setAnimation(ANIMATION_STATES.RUN)
+            else
+                self:setAnimation(ANIMATION_STATES.WALK)
+            end
+            
+            -- Update facing direction
+            self.facingRight = moveX > 0
+        else
+            -- No horizontal movement
+            self.velocity.x = 0
+            if not self.isJumping and not self.isSliding and not self.isPunching then
+                self:setAnimation(ANIMATION_STATES.IDLE)
+            end
+        end
+        
+        -- Jumping
+        if self.controller:isGamepadDown(self.controls.jump) and not self.isJumping then
+            self.velocity.y = self.jumpForce
+            self.isJumping = true
+            self:setAnimation(ANIMATION_STATES.JUMP)
+            logger:debug("Player %s jumped", self.name)
+        end
+        
+        -- Crouching
+        if self.controller:isGamepadDown(self.controls.down) and not self.isRunning and not self.isJumping then
+            self:setAnimation(ANIMATION_STATES.CROUCH)
+        end
+        
+        -- Sliding
+        if self.controller:isGamepadDown(self.controls.slide) and not self.isSliding and self.slideCooldown <= 0 then
+            self:slide()
+        end
+        
+        -- Punching
+        if self.controller:isGamepadDown(self.controls.punch) and not self.isPunching then
+            self:punch()
+        end
+    end
+    
+    -- Log player state periodically
+    if math.floor(love.timer.getTime() * 2) % 10 == 0 then
+        logger:logPlayerState(self)
+    end
+end
+
+function Player:draw()
+    -- Draw player
+    love.graphics.setColor(1, 1, 1)
+    
+    -- Get current animation frame
+    local frame = self.animations[self.currentAnimation].frames[self.currentFrame]
+    if frame then
+        -- Draw with proper facing direction
+        local scaleX = self.facingRight and 1 or -1
+        love.graphics.draw(frame, self.x + self.width/2, self.y + self.height/2, 0, scaleX, 1, self.width/2, self.height/2)
+    else
+        -- Fallback if animation frame is missing
+        love.graphics.setColor(self.color)
+        love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+        logger:warning("Missing animation frame for %s: %s, frame %d", 
+            self.name, self.currentAnimation, self.currentFrame)
+    end
+    
+    -- Draw slide cooldown indicator
+    if self.slideCooldown > 0 then
+        love.graphics.setColor(1, 0, 0, 0.7)
+        local cooldownWidth = 50 * (1 - self.slideCooldown / self.slideCooldownDuration)
+        love.graphics.rectangle("fill", self.x, self.y - 10, cooldownWidth, 5)
+    end
+    
+    -- Draw collected apples
+    for i, apple in ipairs(self.collectedApples) do
+        love.graphics.setColor(1, 0, 0)  -- Red apple
+        love.graphics.circle("fill", self.x + 20 + (i-1) * 30, self.y - 30, 10)
+        
+        -- Draw stem
+        love.graphics.setColor(0, 0.8, 0)  -- Green stem
+        love.graphics.rectangle("fill", self.x + 20 + (i-1) * 30 - 1, self.y - 40, 2, 5)
     end
 end
 
 function Player:setAnimation(animation)
     if self.currentAnimation ~= animation then
         self.currentAnimation = animation
-        self.animations[animation].currentFrame = 1
-        self.animations[animation].timer = 0
+        self.currentFrame = 1
+        self.animationTimer = 0
+        logger:debug("Player %s animation changed to %s", self.name, animation)
     end
 end
 
-function Player:setController(joystick)
-    self.controller = joystick
-end
-
-function Player:update(dt)
-    if not self.controller then return end
+function Player:slide()
+    self.isSliding = true
+    self.slideTimer = 0
+    self.slideCooldown = self.slideCooldownDuration
+    self:setAnimation(ANIMATION_STATES.SLIDE)
     
-    -- Handle knockback
-    if self.knockbackTime > 0 then
-        self.knockbackTime = self.knockbackTime - dt
-        self.x = self.x + self.knockbackVelocity.x * dt
-        self.y = self.y + self.knockbackVelocity.y * dt
-        self:setAnimation(ANIMATION_STATES.KO)
-        return
-    end
+    -- Add a slight upward velocity for a more dynamic slide
+    self.velocity.y = -100
     
-    -- Handle punch cooldown
-    if self.punchCooldown > 0 then
-        self.punchCooldown = self.punchCooldown - dt
-    end
+    -- Could add sound effects here
+    -- love.audio.play(slideSound)
     
-    -- Movement using left stick
-    local axisX = self.controller:getAxis(self.controls.left)
-    local axisY = self.controller:getAxis("lefty")
+    -- Could add visual effects here
+    -- particles:emit("slide", this.x, this.y)
     
-    -- Invert the axis values for proper movement
-    axisX = -axisX
-    axisY = -axisY
-    
-    -- Update facing direction
-    if axisX > 0.2 then
-        self.facingRight = true
-    elseif axisX < -0.2 then
-        self.facingRight = false
-    end
-    
-    -- Horizontal movement
-    if math.abs(axisX) > 0.2 then  -- Dead zone
-        self.velocity.x = axisX * self.speed
-        -- Use run animation if moving fast
-        if math.abs(axisX) > 0.8 then
-            self:setAnimation(ANIMATION_STATES.RUN)
-        else
-            self:setAnimation(ANIMATION_STATES.WALK)
-        end
-    else
-        self.velocity.x = 0
-        self:setAnimation(ANIMATION_STATES.IDLE)
-    end
-    
-    -- Vertical movement (only when not grounded)
-    if not self.isGrounded and math.abs(axisY) > 0.2 then
-        self.velocity.y = axisY * self.speed
-        self:setAnimation(ANIMATION_STATES.JUMP)
-    elseif axisY < -0.2 and self.isGrounded then
-        self:setAnimation(ANIMATION_STATES.CROUCH)
-    end
-    
-    -- Apply gravity
-    self.velocity.y = self.velocity.y + self.gravity * dt
-    
-    -- Update position
-    self.x = self.x + self.velocity.x * dt
-    self.y = self.y + self.velocity.y * dt
-    
-    -- Ground collision
-    if self.y > 600 - self.height then
-        self.y = 600 - self.height
-        self.velocity.y = 0
-        self.isGrounded = true
-        self.hasDoubleJumped = false
-    end
-    
-    -- Update animation
-    self:updateAnimation(dt)
-end
-
-function Player:gamepadpressed(button)
-    if not self.controller then return end
-    
-    if button == self.controls.jump and self.isGrounded then
-        self.velocity.y = self.jumpForce
-        self.isGrounded = false
-        self.canDoubleJump = true
-    elseif button == self.controls.jump and self.canDoubleJump and not self.hasDoubleJumped then
-        self.velocity.y = self.jumpForce * 0.8
-        self.hasDoubleJumped = true
-    elseif button == self.controls.down and not self.isGrounded then
-        self.velocity.y = 800
-    elseif button == self.controls.punch and self.punchCooldown <= 0 then
-        self:punch()
-    end
-end
-
-function Player:draw()
-    local anim = self.animations[self.currentAnimation]
-    if not anim or not anim.frames[anim.currentFrame] then return end
-    
-    local frame = anim.frames[anim.currentFrame]
-    local scale = 0.35  -- Adjusted scale for better fit
-    
-    -- Draw the raccoon sprite
-    love.graphics.setColor(1, 1, 1)  -- Reset color to white for sprites
-    if self.facingRight then
-        love.graphics.draw(frame, self.x, self.y, 0, scale, scale)
-    else
-        love.graphics.draw(frame, self.x + frame:getWidth() * scale, self.y, 0, -scale, scale)
-    end
-    
-    -- Draw punch animation
-    if self.isPunching then
-        love.graphics.setColor(1, 0, 0)
-        love.graphics.rectangle("fill", self.x + (self.facingRight and self.width or -20), 
-            self.y + self.height/2, 20, 10)
-    end
-    
-    -- Draw held box
-    if self.heldBox then
-        love.graphics.setColor(0, 1, 0)
-        love.graphics.rectangle("fill", self.x + self.width/2 - 10, self.y - 20, 20, 20)
-    end
+    logger:info("Player %s started sliding", self.name)
 end
 
 function Player:punch()
     self.isPunching = true
-    self.punchCooldown = 0.5
-    -- Reset punch animation after 0.2 seconds
-    love.timer.after(0.2, function()
-        self.isPunching = false
-    end)
+    self.punchTimer = 0
+    self:setAnimation(ANIMATION_STATES.IDLE)  -- No punch animation yet
+    
+    -- Could add sound effects here
+    -- love.audio.play(punchSound)
+    
+    logger:info("Player %s punched", self.name)
 end
 
 function Player:takeKnockback(velocity)
-    self.knockbackTime = 0.5
-    self.knockbackVelocity = velocity
-    if self.heldBox then
-        self.heldBox = nil
-    end
+    self.velocity.x = velocity.x
+    self.velocity.y = velocity.y
+    self.isJumping = true
+    self:setAnimation(ANIMATION_STATES.KO)
+    
+    -- Could add sound effects here
+    -- love.audio.play(hitSound)
+    
+    logger:info("Player %s took knockback", self.name)
+end
+
+function Player:collectApple(apple)
+    table.insert(self.collectedApples, apple)
+    logger:info("Player %s collected apple: %s", self.name, apple.meaning)
+end
+
+function Player:gamepadpressed(button)
+    logger:debug("Player %s pressed button: %s", self.name, button)
 end
 
 return Player 
