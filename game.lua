@@ -49,8 +49,7 @@ function Game:setupControllers()
             player:setController(joystick)
             table.insert(self.controllers, {
                 joystick = joystick,
-                player = player,
-                isJoyCon = joystick:getName():lower():find("joy-con") ~= nil
+                player = player
             })
         end
     end
