@@ -476,17 +476,17 @@ function Game:draw()
     local largeCjkFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 300)
     love.graphics.setFont(largeCjkFont)
     
-    -- Draw the character in the center of the right side
+    -- Draw the character in the new position (moved down 100px from current position)
     local characterText = self.currentCharacter.name
     local textWidth = largeCjkFont:getWidth(characterText)
     local textHeight = largeCjkFont:getHeight()
-    love.graphics.print(characterText, 900 - textWidth/2, 300 - textHeight/2)
+    love.graphics.print(characterText, 750 - textWidth/2, 100 - textHeight/2)  -- Changed from 0 to 100
     
     -- Draw meaning below the large character
     love.graphics.setFont(self.smallFont)
     love.graphics.setColor(1, 1, 1)  -- White
     local meaningWidth = self.smallFont:getWidth(self.currentCharacter.meaning)
-    love.graphics.print(self.currentCharacter.meaning, 900 - meaningWidth/2, 350)
+    love.graphics.print(self.currentCharacter.meaning, 750 - meaningWidth/2, 150)  -- Changed from 50 to 150
     
     -- Draw falling characters
     for _, box in ipairs(self.boxes) do
@@ -529,6 +529,23 @@ function Game:draw()
                 player.y - expansionY, 
                 player.width + expansionX * 2, 
                 player.height + expansionY * 2)
+            
+            -- Draw kick hitbox if player is kicking
+            if player.isKicking then
+                love.graphics.setColor(1, 0.5, 0, 0.5)  -- Orange for kick hitbox
+                local kickX
+                if player.velocity.x > 0 then
+                    -- Player moving right, kick hitbox on the right
+                    kickX = player.x + player.width + 100
+                else
+                    -- Player moving left or stationary, kick hitbox on the left
+                    kickX = player.x - 100 - 50  -- 50 is the width of the hitbox
+                end
+                local kickY = player.y + player.height/2 - 50  -- Centered vertically
+                love.graphics.rectangle("fill", kickX, kickY, 50, 100)  -- 50x100 kick hitbox
+                love.graphics.setColor(1, 0.5, 0, 1)  -- Solid orange for outline
+                love.graphics.rectangle("line", kickX, kickY, 50, 100)  -- Outline for kick hitbox
+            end
         end
     end
 end
@@ -806,14 +823,48 @@ function Game:checkCollisions()
     
     -- Check player-player collisions for kicking
     for i, controller1 in ipairs(self.controllers) do
-        if controller1.player.isKicking then
+        local player1 = controller1.player
+        if player1.isKicking then
+            -- Calculate kick hitbox position based on player1's direction
+            local kickX
+            if player1.velocity.x > 0 then
+                kickX = player1.x + player1.width + 100
+            else
+                kickX = player1.x - 100 - 50
+            end
+            local kickY = player1.y + player1.height/2 - 50
+            
+            -- Define kick hitbox boundaries
+            local kickLeft = kickX
+            local kickRight = kickX + 50
+            local kickTop = kickY
+            local kickBottom = kickY + 100
+            
+            -- Check collision with all other players
             for j, controller2 in ipairs(self.controllers) do
-                if i ~= j and not controller2.player.isKnockback and controller2.player.invulnerableTimer <= 0 and self:checkCollision(controller1.player, controller2.player) then
-                    local knockbackVel = {
-                        x = (controller2.player.x - controller1.player.x) * 2,
-                        y = -200
-                    }
-                    controller2.player:takeKnockback(knockbackVel)
+                if i ~= j then  -- Don't check collision with self
+                    local player2 = controller2.player
+                    -- Only check if player2 is not already knocked back and not invulnerable
+                    if not player2.isKnockback and player2.invulnerableTimer <= 0 then
+                        -- Check if player2 overlaps with kick hitbox
+                        local player2Left = player2.x
+                        local player2Right = player2.x + player2.width
+                        local player2Top = player2.y
+                        local player2Bottom = player2.y + player2.height
+                        
+                        if not (kickRight < player2Left or 
+                               kickLeft > player2Right or 
+                               kickBottom < player2Top or 
+                               kickTop > player2Bottom) then
+                            -- Kick hit! Apply knockback
+                            local knockbackVel = {
+                                x = player1.facingRight and 500 or -500,  -- Push in kicker's facing direction
+                                y = -10  -- Minimal upward knockback
+                            }
+                            player2:takeKnockback(knockbackVel)
+                            logger:info("Player %s kicked Player %s", player1.name, player2.name)
+                        end
+                    end
                 end
             end
         end

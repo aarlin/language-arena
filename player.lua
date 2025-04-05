@@ -304,9 +304,22 @@ function Player:update(dt)
                 self.knockbackTimer = 0
                 -- Player can move again after knockback ends
                 self.velocity.x = 0
+                self.velocity.y = 0
             end
+            -- Apply knockback velocity
+            self.x = self.x + self.velocity.x * dt
+            self.y = self.y + self.velocity.y * dt
+        else
+            -- Normal movement only when not in knockback
+            -- Apply gravity
+            self.velocity.y = self.velocity.y + self.gravity * dt
+            
+            -- Apply velocity
+            self.x = self.x + self.velocity.x * dt
+            self.y = self.y + self.velocity.y * dt
         end
         
+        -- Update invulnerability timer separately
         if self.invulnerableTimer > 0 then
             self.invulnerableTimer = self.invulnerableTimer - dt
             -- Update flash effect
@@ -315,13 +328,6 @@ function Player:update(dt)
                 self.flashTimer = 0
             end
         end
-        
-        -- Apply gravity
-        self.velocity.y = self.velocity.y + self.gravity * dt
-        
-        -- Apply velocity
-        self.x = self.x + self.velocity.x * dt
-        self.y = self.y + self.velocity.y * dt
         
         -- Screen boundaries
         if self.x < 0 then
@@ -535,15 +541,20 @@ function Player:slide()
 end
 
 function Player:takeKnockback(velocity)
-    self.velocity.x = velocity.x
-    self.velocity.y = velocity.y
+    -- Apply stronger knockback (3x multiplier)
+    self.velocity.x = velocity.x * 3
+    self.velocity.y = velocity.y * 3
     self.isJumping = true
+    self.isKnockback = true
+    self.knockbackTimer = 0
+    self.knockbackDuration = 0.5  -- 0.5 seconds of being unable to act
+    self.invulnerableTimer = 1.0  -- 1 second of invulnerability
     self:setAnimation(ANIMATION_STATES.KO)
     
     -- Could add sound effects here
     -- love.audio.play(hitSound)
     
-    logger:info("Player %s took knockback", self.name)
+    logger:info("Player %s took knockback (velocity: %.2f, %.2f)", self.name, self.velocity.x, self.velocity.y)
 end
 
 function Player:collectCharacter(box)
