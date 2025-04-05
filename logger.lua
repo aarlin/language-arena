@@ -133,7 +133,7 @@ function Logger:logPlayerState(player)
     self:debug("  Velocity: (%.2f, %.2f)", player.velocity.x, player.velocity.y)
     self:debug("  Score: %d", player.score)
     self:debug("  Animation: %s", player.currentAnimation)
-    self:debug("  Collected Apples: %d", #player.collectedApples)
+    self:debug("  Collected Characters: %d", #player.collectedCharacters)
 end
 
 -- Log collision information
