@@ -10,7 +10,7 @@ local ANIMATION_STATES = {
     RUN = "run",
     JUMP = "jump",
     CROUCH = "crouch",
-    SLIDE = "slide",
+    KICK = "kick",
     KO = "ko",
     VICTORY = "victory"
 }
@@ -119,8 +119,7 @@ function Game:setupControllers()
                     right = "leftx", -- Use left stick for movement
                     jump = "a",      -- A button on Switch
                     down = "b",      -- B button on Switch (now used for running)
-                    kick = "x",     -- X button on Switch
-                    slide = "leftshoulder",  -- Left shoulder button (LB) for sliding
+                    kick = "leftshoulder",     -- X button on Switch
                     start = "start", -- Plus button on Switch
                     back = "back"    -- Minus button on Switch
                 }
@@ -155,8 +154,7 @@ function Game:setupControllers()
                     right = "leftx",
                     jump = "a",
                     down = "b",
-                    kick = "x",
-                    slide = "leftshoulder",
+                    kick = "leftshoulder",
                     start = "start",
                     back = "back"
                 }

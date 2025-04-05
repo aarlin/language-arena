@@ -8,10 +8,9 @@ local ANIMATION_STATES = {
     RUN = "run",
     JUMP = "jump",
     CROUCH = "crouch",
-    SLIDE = "slide",
     KO = "ko",
     VICTORY = "victory",
-    DROPKICK = "dropkick"
+    KICK = "kick"  -- New kick animation state
 }
 
 -- Player class
@@ -31,14 +30,9 @@ function Player.new(x, y, color, controls)
     self.gravity = 1000
     self.isJumping = false
     self.isRunning = false
-    self.isSliding = false
-    self.slideTimer = 0
-    self.slideDuration = 0.5
-    self.slideCooldown = 0
-    self.slideCooldownDuration = 3
-    self.isPunching = false
-    self.punchTimer = 0
-    self.punchDuration = 0.2
+    self.isKicking = false
+    self.kickTimer = 0
+    self.kickDuration = 0.3
     self.score = 0
     self.collectedApples = {}
     self.name = "Player " .. (controls and controls.controller or "Unknown")
@@ -48,8 +42,23 @@ function Player.new(x, y, color, controls)
     self.animationSpeed = 0.1
     self.currentFrame = 1
     self.animations = {}
-    self.width = 48  -- Reduced from 64 to make player smaller
-    self.height = 48 -- Reduced from 64 to make player smaller
+    self.width = 24  -- Reduced from 48 to 24 (half size)
+    self.height = 24 -- Reduced from 48 to 24 (half size)
+    
+    -- Hitbox properties
+    self.hitboxWidth = 50
+    self.hitboxHeight = 50
+    self.hitboxOffset = 10  -- Distance from player center
+    self.hitboxXOffset = 0  -- No horizontal offset
+    self.hitboxYOffset = 100  -- Move hitbox 100px down
+    
+    -- Invulnerability and immobility properties
+    self.isInvulnerable = false
+    self.invulnerabilityTimer = 0
+    self.invulnerabilityDuration = 1.0
+    self.isImmobile = false
+    self.immobilityTimer = 0
+    self.immobilityDuration = 0.5
     
     -- Check if running on Nintendo Switch
     self.isSwitch = love._console == "Switch"
@@ -90,7 +99,7 @@ function Player:loadAnimations()
     end
     
     -- Load walk animation
-    local walkFrames = {1, 2, 3, 4, 5, 6, 7, 8}
+    local walkFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
     for _, frameNum in ipairs(walkFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -106,7 +115,7 @@ function Player:loadAnimations()
     end
     
     -- Load run animation
-    local runFrames = {1, 2, 3, 4, 5, 6, 7, 8}
+    local runFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
     for _, frameNum in ipairs(runFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -122,7 +131,7 @@ function Player:loadAnimations()
     end
     
     -- Load jump animation
-    local jumpFrames = {1, 2, 3, 4}
+    local jumpFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
     for _, frameNum in ipairs(jumpFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -138,7 +147,7 @@ function Player:loadAnimations()
     end
     
     -- Load crouch animation
-    local crouchFrames = {1, 2, 3, 4}
+    local crouchFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
     for _, frameNum in ipairs(crouchFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -153,27 +162,24 @@ function Player:loadAnimations()
         end
     end
     
-    -- Load slide animation
-    local slideFrames = {}
-    for i = 1, 23 do
-        table.insert(slideFrames, i)
-    end
-    for _, frameNum in ipairs(slideFrames) do
+    -- Load kick animation
+    local kickFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+    for _, frameNum in ipairs(kickFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/slide/slide" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/raccoon/kick/kick" .. frameNumber .. ".png")
         end)
         
         if success then
-            table.insert(self.animations[ANIMATION_STATES.SLIDE].frames, image)
-            logger:debug("Loaded slide animation frame: slide%s.png", frameNumber)
+            table.insert(self.animations[ANIMATION_STATES.KICK].frames, image)
+            logger:debug("Loaded kick animation frame: kick%s.png", frameNumber)
         else
-            logger:error("Failed to load slide animation frame: slide%s.png - %s", frameNumber, image)
+            logger:error("Failed to load kick animation frame: kick%s.png - %s", frameNumber, image)
         end
     end
     
     -- Load KO animation
-    local koFrames = {1, 2, 3, 4, 5, 6}
+    local koFrames = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18}
     for _, frameNum in ipairs(koFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -188,8 +194,7 @@ function Player:loadAnimations()
         end
     end
     
-    -- Load victory animation
-    local victoryFrames = {1, 2, 3, 4, 5, 6}
+    local victoryFrames = {1, 3, 5, 7, 9, 11}
     for _, frameNum in ipairs(victoryFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -223,39 +228,45 @@ function Player:update(dt)
             end
         end
         
-        -- Update slide cooldown
-        if self.slideCooldown > 0 then
-            self.slideCooldown = self.slideCooldown - dt
-        end
-        
-        -- Update slide timer
-        if self.isSliding then
-            self.slideTimer = self.slideTimer + dt
-            if self.slideTimer >= self.slideDuration then
-                self.isSliding = false
-                self.slideTimer = 0
-                self:setAnimation(ANIMATION_STATES.IDLE)
-                logger:debug("Player %s finished sliding", self.name)
+        -- Update invulnerability timer
+        if self.isInvulnerable then
+            self.invulnerabilityTimer = self.invulnerabilityTimer + dt
+            if self.invulnerabilityTimer >= self.invulnerabilityDuration then
+                self.isInvulnerable = false
+                self.invulnerabilityTimer = 0
+                logger:debug("Player %s is no longer invulnerable", self.name)
             end
         end
         
-        -- Update punch timer
-        if self.isPunching then
-            self.punchTimer = self.punchTimer + dt
-            if self.punchTimer >= self.punchDuration then
-                self.isPunching = false
-                self.punchTimer = 0
+        -- Update immobility timer
+        if self.isImmobile then
+            self.immobilityTimer = self.immobilityTimer + dt
+            if self.immobilityTimer >= self.immobilityDuration then
+                self.isImmobile = false
+                self.immobilityTimer = 0
+                logger:debug("Player %s can move again", self.name)
+            end
+        end
+        
+        -- Update kick timer
+        if self.isKicking then
+            self.kickTimer = self.kickTimer + dt
+            if self.kickTimer >= self.kickDuration then
+                self.isKicking = false
+                self.kickTimer = 0
                 self:setAnimation(ANIMATION_STATES.IDLE)
-                logger:debug("Player %s finished punching", self.name)
+                logger:debug("Player %s finished kicking", self.name)
             end
         end
         
         -- Apply gravity
         self.velocity.y = self.velocity.y + self.gravity * dt
         
-        -- Apply velocity
-        self.x = self.x + self.velocity.x * dt
-        self.y = self.y + self.velocity.y * dt
+        -- Apply velocity (only if not immobile)
+        if not self.isImmobile then
+            self.x = self.x + self.velocity.x * dt
+            self.y = self.y + self.velocity.y * dt
+        end
         
         -- Screen boundaries
         if self.x < 0 then
@@ -276,65 +287,62 @@ function Player:update(dt)
             end
         end
         
-        -- Handle controller input
-        if self.controller then
-            -- Movement
-            local moveX = self.controller:getGamepadAxis("leftx")
-            if math.abs(moveX) > 0.1 then
-                -- Determine if running
-                local isRunningNow = false
-                if self.controls.down then
-                    isRunningNow = self.controller:isGamepadDown(self.controls.down)
-                end
-                if isRunningNow ~= self.isRunning then
-                    self.isRunning = isRunningNow
-                    logger:debug("Player %s %s", self.name, self.isRunning and "started running" or "stopped running")
-                end
-                
-                -- Set speed based on running state
-                local currentSpeed = self.isRunning and self.runSpeed or self.speed
-                
-                -- Apply movement
-                self.velocity.x = moveX * currentSpeed
-                
-                -- Set animation based on movement
-                if self.isRunning then
-                    self:setAnimation(ANIMATION_STATES.RUN)
+        -- Handle controller input (only if not immobile)
+        if self.controller and not self.isImmobile then
+            -- Check for kick input first (highest priority)
+            if self.controls.kick and self.controller:isGamepadDown(self.controls.kick) and not self.isKicking then
+                self:kick()
+            end
+            
+            -- Movement (only if not kicking)
+            if not self.isKicking then
+                local moveX = self.controller:getGamepadAxis("leftx")
+                if math.abs(moveX) > 0.1 then
+                    -- Determine if running
+                    local isRunningNow = false
+                    if self.controls.down then
+                        isRunningNow = self.controller:isGamepadDown(self.controls.down)
+                    end
+                    if isRunningNow ~= self.isRunning then
+                        self.isRunning = isRunningNow
+                        logger:debug("Player %s %s", self.name, self.isRunning and "started running" or "stopped running")
+                    end
+                    
+                    -- Set speed based on running state
+                    local currentSpeed = self.isRunning and self.runSpeed or self.speed
+                    
+                    -- Apply movement
+                    self.velocity.x = moveX * currentSpeed
+                    
+                    -- Set animation based on movement
+                    if self.isRunning then
+                        self:setAnimation(ANIMATION_STATES.RUN)
+                    else
+                        self:setAnimation(ANIMATION_STATES.WALK)
+                    end
+                    
+                    -- Update facing direction
+                    self.facingRight = moveX > 0
                 else
-                    self:setAnimation(ANIMATION_STATES.WALK)
+                    -- No horizontal movement
+                    self.velocity.x = 0
+                    if not self.isJumping and not self.isKicking then
+                        self:setAnimation(ANIMATION_STATES.IDLE)
+                    end
                 end
                 
-                -- Update facing direction
-                self.facingRight = moveX > 0
-            else
-                -- No horizontal movement
-                self.velocity.x = 0
-                if not self.isJumping and not self.isSliding and not self.isPunching then
-                    self:setAnimation(ANIMATION_STATES.IDLE)
+                -- Jumping
+                if self.controls.jump and self.controller:isGamepadDown(self.controls.jump) and not self.isJumping then
+                    self.velocity.y = self.jumpForce
+                    self.isJumping = true
+                    self:setAnimation(ANIMATION_STATES.JUMP)
+                    logger:debug("Player %s jumped", self.name)
                 end
-            end
-            
-            -- Jumping
-            if self.controls.jump and self.controller:isGamepadDown(self.controls.jump) and not self.isJumping then
-                self.velocity.y = self.jumpForce
-                self.isJumping = true
-                self:setAnimation(ANIMATION_STATES.JUMP)
-                logger:debug("Player %s jumped", self.name)
-            end
-            
-            -- Crouching
-            if self.controls.down and self.controller:isGamepadDown(self.controls.down) and not self.isRunning and not self.isJumping then
-                self:setAnimation(ANIMATION_STATES.CROUCH)
-            end
-            
-            -- Sliding
-            if self.controls.slide and self.controller:isGamepadDown(self.controls.slide) and not self.isSliding and self.slideCooldown <= 0 then
-                self:slide()
-            end
-            
-            -- Punching (using kick control)
-            if self.controls.kick and self.controller:isGamepadDown(self.controls.kick) and not self.isPunching then
-                self:punch()
+                
+                -- Crouching
+                if self.controls.down and self.controller:isGamepadDown(self.controls.down) and not self.isRunning and not self.isJumping then
+                    self:setAnimation(ANIMATION_STATES.CROUCH)
+                end
             end
         end
         
@@ -350,8 +358,7 @@ function Player:update(dt)
         -- Try to recover by resetting to a safe state
         self.velocity = {x = 0, y = 0}
         self.isJumping = false
-        self.isSliding = false
-        self.isPunching = false
+        self.isKicking = false
         self:setAnimation(ANIMATION_STATES.IDLE)
     end
 end
@@ -364,15 +371,69 @@ function Player:draw()
     if self.animations[self.currentAnimation] and self.animations[self.currentAnimation].frames[self.currentFrame] then
         local image = self.animations[self.currentAnimation].frames[self.currentFrame]
         
+        -- Save the current transformation
+        love.graphics.push()
+        
+        -- Set the scale to 0.5
+        love.graphics.scale(0.5, 0.5)
+        
+        -- Calculate draw position with offset based on facing direction
+        local drawX = self.x + self.width/2
+        if self.facingRight then
+            -- Move character slightly to the left when facing right
+            drawX = drawX - 100
+        else
+            -- Move character slightly to the right when facing left
+            drawX = drawX + 100
+        end
+        
         -- Flip the image if facing left
         if not self.facingRight then
-            love.graphics.draw(image, self.x + self.width, self.y, 0, -1, 1)
+            love.graphics.draw(image, (drawX + self.width) * 2, self.y * 2, 0, -1, 1)
         else
-            love.graphics.draw(image, self.x, self.y)
+            love.graphics.draw(image, drawX * 2, self.y * 2)
         end
+        
+        -- Restore the transformation
+        love.graphics.pop()
     else
         -- Fallback if animation frame is missing
         love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+    end
+    
+    -- Draw hitbox for debugging
+    if config.debug.showHitboxes then
+        -- Calculate hitbox position (used for all visualizations)
+        local hitboxX = self.facingRight and (self.x + self.width/2 + self.hitboxOffset) or (self.x + self.width/2 - self.hitboxOffset - self.hitboxWidth)
+        hitboxX = hitboxX + self.hitboxXOffset  -- Apply horizontal offset (now 0)
+        local hitboxY = self.y + self.height/2 - self.hitboxHeight/2 + self.hitboxYOffset  -- Apply vertical offset (now 100)
+
+        -- Draw player model box at offset position
+        love.graphics.setColor(1, 0, 0, 0.5)  -- Semi-transparent red
+        local modelX = hitboxX
+        if self.facingRight then
+            -- Move character slightly to the left when facing right
+            modelX = modelX - 100
+        else
+            -- Move character slightly to the right when facing left
+            modelX = modelX + 100
+        end
+        local modelY = hitboxY + 50  -- 50px down
+        love.graphics.rectangle("fill", modelX, modelY, self.hitboxWidth, self.hitboxHeight)
+        love.graphics.setColor(1, 1, 1)  -- White text
+        love.graphics.print("Player Model", modelX, modelY - 20)
+
+        -- Draw hitbox
+        love.graphics.setColor(0, 1, 0, 0.5)  -- Semi-transparent green
+        love.graphics.rectangle("fill", hitboxX, hitboxY, self.hitboxWidth, self.hitboxHeight)
+        love.graphics.print("Hitbox", hitboxX, hitboxY - 40)
+
+        -- Draw collection box at offset position
+        love.graphics.setColor(0, 0, 1, 0.5)  -- Semi-transparent blue
+        local collectionX = hitboxX + (self.facingRight and 50 or -50)  -- 50px right if facing right, 50px left if facing left
+        local collectionY = hitboxY + 50  -- 50px down
+        love.graphics.rectangle("fill", collectionX, collectionY, self.hitboxWidth, self.hitboxHeight)
+        love.graphics.print("Collection Box", collectionX, collectionY - 60)
     end
     
     -- Draw player name
@@ -397,11 +458,16 @@ function Player:draw()
             self.x, self.y - 60)
     end
     
-    -- Draw slide cooldown indicator
-    if self.slideCooldown > 0 then
-        love.graphics.setColor(1, 0, 0, 0.7)
-        local cooldownWidth = 50 * (1 - self.slideCooldown / self.slideCooldownDuration)
-        love.graphics.rectangle("fill", self.x, self.y - 10, cooldownWidth, 5)
+    -- Draw invulnerability indicator
+    if self.isInvulnerable then
+        love.graphics.setColor(0, 0, 1, 0.7)  -- Blue
+        love.graphics.circle("fill", self.x + self.width/2, self.y + self.height/2, 30)
+    end
+    
+    -- Draw immobility indicator
+    if self.isImmobile then
+        love.graphics.setColor(1, 0.5, 0, 0.7)  -- Orange
+        love.graphics.rectangle("fill", self.x, self.y - 30, self.width, 5)
     end
     
     -- Draw collected apples
@@ -416,6 +482,11 @@ function Player:draw()
 end
 
 function Player:setAnimation(animation)
+    -- Don't change animation if currently kicking, unless explicitly setting to kick
+    if self.isKicking and animation ~= ANIMATION_STATES.KICK then
+        return
+    end
+    
     if self.currentAnimation ~= animation then
         self.currentAnimation = animation
         self.currentFrame = 1
@@ -424,45 +495,39 @@ function Player:setAnimation(animation)
     end
 end
 
-function Player:slide()
-    self.isSliding = true
-    self.slideTimer = 0
-    self.slideCooldown = self.slideCooldownDuration
-    self:setAnimation(ANIMATION_STATES.SLIDE)
-    
-    -- Add a slight upward velocity for a more dynamic slide
-    self.velocity.y = -100
+function Player:kick()
+    self.isKicking = true
+    self.kickTimer = 0
+    self:setAnimation(ANIMATION_STATES.KICK)
     
     -- Could add sound effects here
-    -- love.audio.play(slideSound)
+    -- love.audio.play(kickSound)
     
-    -- Could add visual effects here
-    -- particles:emit("slide", this.x, this.y)
-    
-    logger:info("Player %s started sliding", self.name)
-end
-
-function Player:punch()
-    self.isPunching = true
-    self.punchTimer = 0
-    self:setAnimation(ANIMATION_STATES.IDLE)  -- No punch animation yet
-    
-    -- Could add sound effects here
-    -- love.audio.play(punchSound)
-    
-    logger:info("Player %s punched", self.name)
+    logger:info("Player %s kicked", self.name)
 end
 
 function Player:takeKnockback(velocity)
-    self.velocity.x = velocity.x
-    self.velocity.y = velocity.y
-    self.isJumping = true
-    self:setAnimation(ANIMATION_STATES.KO)
-    
-    -- Could add sound effects here
-    -- love.audio.play(hitSound)
-    
-    logger:info("Player %s took knockback", self.name)
+    -- Only take knockback if not invulnerable
+    if not self.isInvulnerable then
+        self.velocity.x = velocity.x
+        self.velocity.y = velocity.y
+        self.isJumping = true
+        self:setAnimation(ANIMATION_STATES.KO)
+        
+        -- Set invulnerability and immobility
+        self.isInvulnerable = true
+        self.invulnerabilityTimer = 0
+        self.isImmobile = true
+        self.immobilityTimer = 0
+        
+        -- Could add sound effects here
+        -- love.audio.play(hitSound)
+        
+        logger:info("Player %s took knockback and is now invulnerable for %.1f seconds and immobile for %.1f seconds", 
+            self.name, self.invulnerabilityDuration, self.immobilityDuration)
+    else
+        logger:debug("Player %s ignored knockback due to invulnerability", self.name)
+    end
 end
 
 function Player:collectApple(apple)
@@ -472,6 +537,40 @@ end
 
 function Player:gamepadpressed(button)
     logger:debug("Player %s pressed button: %s", self.name, button)
+end
+
+-- New function to check if an apple is within the player's hitbox
+function Player:isAppleInHitbox(apple)
+    -- Calculate hitbox position based on player position and facing direction
+    local hitboxX = self.facingRight and (self.x + self.width/2 + self.hitboxOffset) or (self.x + self.width/2 - self.hitboxOffset - self.hitboxWidth)
+    hitboxX = hitboxX + self.hitboxXOffset  -- Apply horizontal offset (now 0)
+    local hitboxY = self.y + self.height/2 - self.hitboxHeight/2 + self.hitboxYOffset  -- Apply vertical offset (now 100)
+    
+    -- Calculate player model position (offset in opposite direction of facing)
+    local modelX = hitboxX
+    if self.facingRight then
+        -- Move character slightly to the left when facing right
+        modelX = modelX - 100
+    else
+        -- Move character slightly to the right when facing left
+        modelX = modelX + 100
+    end
+    local modelY = hitboxY + 50  -- 50px down
+    
+    -- Check if apple is within player model box
+    return apple.x >= modelX and 
+           apple.x <= modelX + self.hitboxWidth and
+           apple.y >= modelY and 
+           apple.y <= modelY + self.hitboxHeight
+end
+
+-- New function to collect an apple if it's in the hitbox
+function Player:tryCollectApple(apple)
+    if self:isAppleInHitbox(apple) then
+        self:collectApple(apple)
+        return true
+    end
+    return false
 end
 
 return Player 
