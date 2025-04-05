@@ -1,167 +1,95 @@
 -- Logger module for Language Arena
 -- Provides logging functionality for debugging
 
-local Logger = {}
-Logger.__index = Logger
+local config = require("config")
 
--- Log levels
-Logger.LEVELS = {
-    DEBUG = 1,
-    INFO = 2,
-    WARNING = 3,
-    ERROR = 4
-}
+local logger = {}
 
--- Current log level (change this to control verbosity)
-Logger.currentLevel = Logger.LEVELS.DEBUG
-
--- Flag to completely disable all logging
-Logger.enabled = true
-
--- Log file path
-Logger.logFile = "language_arena.log"
-
--- Initialize the logger
-function Logger.new()
-    local self = setmetatable({}, Logger)
-    
-    -- Open log file in append mode
-    self.file = io.open(Logger.logFile, "a")
-    if not self.file then
-        print("Warning: Could not open log file for writing")
-    end
-    
-    -- Log startup message
-    self:info("Logger initialized")
-    
-    return self
+-- Internal function to check if logging is enabled for a specific level and event type
+local function shouldLog(level, eventType)
+    if not config.logging.enabled then return false end
+    if not config.logging.levels[level] then return false end
+    if eventType and not config.logging.events[eventType] then return false end
+    return true
 end
 
--- Enable or disable all logging
-function Logger:setEnabled(enabled)
-    Logger.enabled = enabled
-    if enabled then
-        self:info("Logging enabled")
-    else
-        print("Logging disabled")
-    end
+-- Format the current time for log messages
+local function getTimeStamp()
+    return os.date("%Y-%m-%d %H:%M:%S")
 end
 
--- Toggle logging on/off
-function Logger:toggle()
-    self:setEnabled(not Logger.enabled)
-    return Logger.enabled
-end
-
--- Log a debug message
-function Logger:debug(message, ...)
-    if Logger.enabled and Logger.currentLevel <= Logger.LEVELS.DEBUG then
-        self:log("DEBUG", message, ...)
-    end
-end
-
--- Log an info message
-function Logger:info(message, ...)
-    if Logger.enabled and Logger.currentLevel <= Logger.LEVELS.INFO then
-        self:log("INFO", message, ...)
-    end
-end
-
--- Log a warning message
-function Logger:warning(message, ...)
-    if Logger.enabled and Logger.currentLevel <= Logger.LEVELS.WARNING then
-        self:log("WARNING", message, ...)
-    end
-end
-
--- Log an error message
-function Logger:error(message, ...)
-    if Logger.enabled and Logger.currentLevel <= Logger.LEVELS.ERROR then
-        self:log("ERROR", message, ...)
-    end
-end
-
--- Internal logging function
-function Logger:log(level, message, ...)
-    -- Format the message with any additional arguments
+-- Base logging function
+local function log(level, message, ...)
+    if not shouldLog(level) then return end
+    local timestamp = getTimeStamp()
     local formattedMessage = string.format(message, ...)
-    
-    -- Get current timestamp
-    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-    
-    -- Create log entry
-    local logEntry = string.format("[%s] [%s] %s\n", timestamp, level, formattedMessage)
-    
-    -- Write to console
-    print(logEntry)
-    
-    -- Write to file if available
-    if self.file then
-        self.file:write(logEntry)
-        self.file:flush()  -- Ensure it's written immediately
-    end
+    print(string.format("[%s][%s] %s", timestamp, level:upper(), formattedMessage))
 end
 
--- Log controller information
-function Logger:logController(controller, player)
-    self:debug("Controller: %s, Player: %s", 
-        controller and controller:getName() or "None",
-        player and player.name or "None")
-    
-    if controller then
-        self:debug("  Buttons: %s", table.concat(controller:getButtons(), ", "))
-        self:debug("  Axes: %s", table.concat(controller:getAxes(), ", "))
-    end
+-- Public logging functions
+function logger:info(message, ...)
+    log("info", message, ...)
 end
 
--- Log game state
-function Logger:logGameState(game)
-    self:debug("Game State: %s", game.gameState)
-    self:debug("Current Character: %s (%s)", 
-        game.currentCharacter and game.currentCharacter.name or "None",
-        game.currentCharacter and game.currentCharacter.meaning or "None")
-    self:debug("Game Timer: %.2f / %.2f", game.gameTimer, game.gameDuration)
-    self:debug("Character Timer: %.2f / %.2f", game.characterTimer, game.characterChangeTime)
-    self:debug("Boxes: %d", #game.boxes)
-    self:debug("Players: %d", #game.controllers)
+function logger:debug(message, ...)
+    log("debug", message, ...)
 end
 
--- Log player state
-function Logger:logPlayerState(player)
-    self:debug("Player: %s", player.name)
-    self:debug("  Position: (%.2f, %.2f)", player.x, player.y)
-    self:debug("  Velocity: (%.2f, %.2f)", player.velocity.x, player.velocity.y)
-    self:debug("  Score: %d", player.score)
-    self:debug("  Animation: %s", player.currentAnimation)
-    self:debug("  Collected Characters: %d", #player.collectedCharacters)
+function logger:warning(message, ...)
+    log("warning", message, ...)
 end
 
--- Log collision information
-function Logger:logCollision(obj1, obj2, result)
-    self:debug("Collision Check: %s with %s = %s", 
-        obj1.name or "Object1", 
-        obj2.name or "Object2", 
-        result and "true" or "false")
-    
-    if result then
-        self:debug("  Object1: (%.2f, %.2f, %.2f, %.2f)", 
-            obj1.x, obj1.y, obj1.width or 0, obj1.height or 0)
-        self:debug("  Object2: (%.2f, %.2f, %.2f, %.2f)", 
-            obj2.x, obj2.y, obj2.width or 0, obj2.height or 0)
-    end
+function logger:error(message, ...)
+    log("error", message, ...)
 end
 
--- Close the log file
-function Logger:close()
-    if self.file then
-        self:info("Logger closing")
-        self.file:close()
-        self.file = nil
-    end
+-- Specialized logging functions for specific event types
+function logger:logPlayerState(player)
+    if not shouldLog("debug", "playerMovement") then return end
+    log("debug", "Player %s state - Pos: (%.2f, %.2f), Vel: (%.2f, %.2f), Animation: %s",
+        player.name, player.x, player.y, player.velocity.x, player.velocity.y, player.currentAnimation)
 end
 
--- Create a singleton instance
-local logger = Logger.new()
+function logger:logGameState(game)
+    if not shouldLog("debug", "stateChanges") then return end
+    log("debug", "Game state - Timer: %.2f, Players: %d, Boxes: %d",
+        game.gameTimer, #game.controllers, #game.boxes)
+end
 
--- Return the singleton instance
+function logger:logCollision(player, box, collision)
+    if not shouldLog("debug", "collisions") then return end
+    log("debug", "Collision check - Player: %s, Box: %s, Collided: %s",
+        player.name, box.meaning, tostring(collision))
+end
+
+function logger:logCombatEvent(attacker, target, action, result)
+    if not shouldLog("info", "combat") then return end
+    log("info", "Combat - %s %s %s (Result: %s)",
+        attacker.name, action, target.name, result)
+end
+
+function logger:logCharacterCollection(player, character)
+    if not shouldLog("info", "characterCollection") then return end
+    log("info", "Collection - Player %s collected character %s",
+        player.name, character.meaning)
+end
+
+function logger:logAnimationChange(player, oldAnim, newAnim)
+    if not shouldLog("debug", "animations") then return end
+    log("debug", "Animation - Player %s changed from %s to %s",
+        player.name, oldAnim, newAnim)
+end
+
+function logger:logInput(player, input, value)
+    if not shouldLog("debug", "input") then return end
+    log("debug", "Input - Player %s: %s = %s",
+        player.name, input, tostring(value))
+end
+
+-- Add close function to handle cleanup
+function logger:close()
+    -- Currently just a placeholder for future cleanup if needed
+    logger:info("Logger closing")
+end
+
 return logger 

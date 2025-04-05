@@ -1,6 +1,7 @@
 local Player = require("player")
 local characters = require("characters")
 local logger = require("logger")  -- Import the logger
+local config = require("config")  -- Import the config module
 
 -- Import ANIMATION_STATES from player.lua
 local ANIMATION_STATES = {
@@ -18,121 +19,77 @@ local ANIMATION_STATES = {
 local Game = {}
 Game.__index = Game
 
--- Character definitions
-local CHARACTERS = {
-    {
-        name = "猫",
-        meaning = "Cat",
-        color = {1, 0.5, 0}  -- Orange
-    },
-    {
-        name = "犬",
-        meaning = "Dog",
-        color = {0.5, 0.5, 0.5}  -- Gray
-    },
-    {
-        name = "鳥",
-        meaning = "Bird",
-        color = {0, 0.8, 1}  -- Light blue
-    },
-    {
-        name = "魚",
-        meaning = "Fish",
-        color = {0, 0.5, 1}  -- Blue
-    },
-    {
-        name = "熊",
-        meaning = "Bear",
-        color = {0.6, 0.3, 0}  -- Brown
-    },
-    {
-        name = "兔",
-        meaning = "Rabbit",
-        color = {1, 1, 1}  -- White
-    },
-    {
-        name = "虎",
-        meaning = "Tiger",
-        color = {1, 0.5, 0}  -- Orange
-    },
-    {
-        name = "龍",
-        meaning = "Dragon",
-        color = {1, 0, 0}  -- Red
-    },
-    {
-        name = "馬",
-        meaning = "Horse",
-        color = {0.5, 0.25, 0}  -- Dark brown
-    },
-    {
-        name = "羊",
-        meaning = "Sheep",
-        color = {0.9, 0.9, 0.9}  -- Light gray
-    },
-    {
-        name = "蛇",
-        meaning = "Snake",
-        color = {0, 0.8, 0}  -- Green
-    },
-    {
-        name = "雞",
-        meaning = "Rooster",
-        color = {1, 0.8, 0}  -- Yellow
-    },
-    {
-        name = "豬",
-        meaning = "Pig",
-        color = {1, 0.7, 0.7}  -- Pink
-    },
-    {
-        name = "牛",
-        meaning = "Ox",
-        color = {0.5, 0.25, 0}  -- Brown
-    },
-    {
-        name = "猴",
-        meaning = "Monkey",
-        color = {0.6, 0.3, 0}  -- Brown
-    },
-    {
-        name = "鼠",
-        meaning = "Mouse",
-        color = {0.7, 0.7, 0.7}  -- Gray
-    }
-}
-
 function Game.new()
     local self = setmetatable({}, Game)
     self.controllers = {}
     self.boxes = {}
-    self.currentCharacter = CHARACTERS[1]
+    self.currentCharacter = characters[1]
     self.characterTimer = 0
     self.characterChangeTime = love.math.random(15, 25)  -- Random time between 15-25 seconds
     self.spawnTimer = 0
-    self.spawnInterval = 1  -- Decreased from 2 to 1 second for more frequent spawns
+    self.spawnInterval = 2  -- Increased from 1 to 2 seconds to reduce object creation
     self.background = love.graphics.newImage("assets/background/forest.jpg")
-    self.font = love.graphics.newFont(24)
-    self.smallFont = love.graphics.newFont(16)
-    self.titleFont = love.graphics.newFont(48)
-    self.subtitleFont = love.graphics.newFont(24)
-    self.instructionFont = love.graphics.newFont(18)
-    self.cjkFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 24)  -- CJK font for Chinese/Japanese characters
+    
+    -- Check if running on Nintendo Switch
+    self.isSwitch = love._console == "Switch"
+    
+    -- Use system fonts for all platforms
+    logger:info("Using system fonts")
+    -- Use system fonts with appropriate sizes
+    if self.isSwitch then
+        -- On Switch, use the "standard" font
+        self.font = love.graphics.newFont("standard", 24)
+        self.smallFont = love.graphics.newFont("standard", 16)
+        self.titleFont = love.graphics.newFont("standard", 48)
+        self.subtitleFont = love.graphics.newFont("standard", 24)
+        self.instructionFont = love.graphics.newFont("standard", 18)
+        self.cjkFont = love.graphics.newFont("standard", 24)
+    else
+        -- On PC, use SourceHanSansSC font
+        self.font = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 24)
+        self.smallFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 16)
+        self.titleFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 48)
+        self.subtitleFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 24)
+        self.instructionFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 18)
+        self.cjkFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 24)
+    end
+    
+    -- Helper function to safely set font
+    self.safeSetFont = function(font)
+        if font and type(font) == "userdata" then
+            love.graphics.setFont(font)
+        end
+    end
+    
     self.gameState = "title"  -- title, game, gameover
     self.winner = nil
     self.gameTimer = 0
     self.gameDuration = 120  -- 2 minutes game time
     self.botCount = 0  -- Default to no bots
     self.selectedBotCount = 0  -- Currently selected bot count in menu
-    self.debugMode = true  -- Debug mode for hitbox visualization
     
     -- Character selection
     self.characterEnabled = {}
-    for i, char in ipairs(CHARACTERS) do
+    for i, char in ipairs(characters) do
         self.characterEnabled[i] = true  -- All characters enabled by default
     end
     self.selectedCharacterIndex = 1  -- Currently selected character in the grid
     self.characterSelectionCooldown = 0  -- Cooldown timer for character selection
+    
+    -- Preload character images to avoid loading during gameplay
+    self.characterImages = {}
+    for _, char in ipairs(characters) do
+        local imagePath = "assets/characters/" .. string.lower(char.meaning) .. ".png"
+        local success, image = pcall(function()
+            return love.graphics.newImage(imagePath)
+        end)
+        
+        if success then
+            self.characterImages[char.meaning] = image
+        else
+            logger:warning("Failed to preload character image: %s", imagePath)
+        end
+    end
     
     -- Setup controllers
     self:setupControllers()
@@ -262,7 +219,7 @@ function Game:update(dt)
                     if controller.joystick:isGamepadDown("dpup") then
                         self.selectedCharacterIndex = self.selectedCharacterIndex - 8
                         if self.selectedCharacterIndex < 1 then
-                            self.selectedCharacterIndex = #CHARACTERS
+                            self.selectedCharacterIndex = #characters
                         end
                         self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
                         logger:debug("Selected character: %d", self.selectedCharacterIndex)
@@ -270,7 +227,7 @@ function Game:update(dt)
                     end
                     if controller.joystick:isGamepadDown("dpdown") then
                         self.selectedCharacterIndex = self.selectedCharacterIndex + 8
-                        if self.selectedCharacterIndex > #CHARACTERS then
+                        if self.selectedCharacterIndex > #characters then
                             self.selectedCharacterIndex = 1
                         end
                         self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
@@ -280,7 +237,7 @@ function Game:update(dt)
                     if controller.joystick:isGamepadDown("dpleft") then
                         self.selectedCharacterIndex = self.selectedCharacterIndex - 1
                         if self.selectedCharacterIndex < 1 then
-                            self.selectedCharacterIndex = #CHARACTERS
+                            self.selectedCharacterIndex = #characters
                         end
                         self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
                         logger:debug("Selected character: %d", self.selectedCharacterIndex)
@@ -288,7 +245,7 @@ function Game:update(dt)
                     end
                     if controller.joystick:isGamepadDown("dpright") then
                         self.selectedCharacterIndex = self.selectedCharacterIndex + 1
-                        if self.selectedCharacterIndex > #CHARACTERS then
+                        if self.selectedCharacterIndex > #characters then
                             self.selectedCharacterIndex = 1
                         end
                         self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
@@ -302,15 +259,8 @@ function Game:update(dt)
                     self.characterEnabled[self.selectedCharacterIndex] = not self.characterEnabled[self.selectedCharacterIndex]
                     logger:info("Character %d (%s) %s", 
                         self.selectedCharacterIndex, 
-                        CHARACTERS[self.selectedCharacterIndex].name,
+                        characters[self.selectedCharacterIndex].character,
                         self.characterEnabled[self.selectedCharacterIndex] and "enabled" or "disabled")
-                    break
-                end
-                
-                -- Toggle debug mode with Y button
-                if controller.joystick:isGamepadDown("y") then
-                    self.debugMode = not self.debugMode
-                    logger:info("Debug mode %s", self.debugMode and "enabled" or "disabled")
                     break
                 end
             end
@@ -347,13 +297,13 @@ function Game:update(dt)
         -- Change to a random character (different from current)
         local newIndex
         repeat
-            newIndex = love.math.random(1, #CHARACTERS)
-        until CHARACTERS[newIndex].name ~= self.currentCharacter.name
+            newIndex = love.math.random(1, #characters)
+        until characters[newIndex].character ~= self.currentCharacter.character
         
         logger:info("Character changed from %s to %s", 
-            self.currentCharacter.name, CHARACTERS[newIndex].name)
+            self.currentCharacter.character, characters[newIndex].character)
         
-        self.currentCharacter = CHARACTERS[newIndex]
+        self.currentCharacter = characters[newIndex]
         self.characterTimer = 0
         self.characterChangeTime = love.math.random(15, 25)  -- Random time between 15-25 seconds
     end
@@ -432,119 +382,97 @@ end
 function Game:draw()
     -- Draw background
     love.graphics.setColor(1, 1, 1)
-    love.graphics.draw(self.background, 0, 0, 0, 1.5, 1.5)
+    love.graphics.draw(self.background, 0, 0)
     
+    -- Draw based on game state
     if self.gameState == "title" then
         self:drawTitle()
-        return
+    elseif self.gameState == "game" then
+        -- Draw boxes
+        for _, box in ipairs(self.boxes) do
+            if box.useCircle then
+                -- Draw circle for character
+                love.graphics.setColor(1, 0.8, 0)  -- Yellow color for circles
+                love.graphics.circle("fill", box.x + box.width/2, box.y + box.height/2, box.width/2)
+                -- Draw character meaning in the circle
+                love.graphics.setColor(0, 0, 0)  -- Black text
+                self:safeSetFont(self.smallFont)
+                local text = box.character
+                local textWidth = self.smallFont:getWidth(text)
+                love.graphics.print(text, box.x + (box.width - textWidth)/2, box.y + box.height/2 - 8)
+            else
+                -- Draw character image
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.draw(box.image, box.x, box.y)
+            end
+        end
+        
+        -- Draw players
+        for _, controller in ipairs(self.controllers) do
+            controller.player:draw()
+        end
     elseif self.gameState == "gameover" then
         self:drawGameOver()
-        return
+    elseif self.gameState == "characterSelection" then
+        self:drawCharacterSelection()
     end
     
-    -- Draw timer and scoreboard on the left side
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.setFont(self.smallFont)
-    local timeLeft = math.ceil(self.gameDuration - self.gameTimer)
-    local timerText = string.format("Time: %d", timeLeft)
-    local timerWidth = self.smallFont:getWidth(timerText)
-    love.graphics.print(timerText, 50, 20)
-    
-    -- Draw character change timer
-    local changeTimeLeft = math.ceil(self.characterChangeTime - self.characterTimer)
-    local changeText = string.format("Next character: %d", changeTimeLeft)
-    local changeWidth = self.smallFont:getWidth(changeText)
-    love.graphics.print(changeText, 50, 50)
-    
-    -- Draw leaderboard
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.setFont(self.smallFont)
-    local leaderboardTitle = "Leaderboard"
-    local leaderboardWidth = self.smallFont:getWidth(leaderboardTitle)
-    love.graphics.print(leaderboardTitle, 50, 80)
-    
-    for i, controller in ipairs(self.controllers) do
-        local scoreText = string.format("Player %d: %d points", i, controller.player.score)
-        love.graphics.print(scoreText, 50, 100 + i * 20)
-    end
-    
-    -- Draw large character on the right side (300x300)
-    love.graphics.setColor(self.currentCharacter.color)
-    love.graphics.setFont(self.cjkFont)
-    
-    -- Create a larger font for the character
-    local largeCjkFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 300)
-    love.graphics.setFont(largeCjkFont)
-    
-    -- Draw the character in the new position (moved down 100px from current position)
-    local characterText = self.currentCharacter.name
-    local textWidth = largeCjkFont:getWidth(characterText)
-    local textHeight = largeCjkFont:getHeight()
-    love.graphics.print(characterText, 750 - textWidth/2, 100 - textHeight/2)  -- Changed from 0 to 100
-    
-    -- Draw meaning below the large character
-    love.graphics.setFont(self.smallFont)
-    love.graphics.setColor(1, 1, 1)  -- White
-    local meaningWidth = self.smallFont:getWidth(self.currentCharacter.meaning)
-    love.graphics.print(self.currentCharacter.meaning, 750 - meaningWidth/2, 150)  -- Changed from 50 to 150
-    
-    -- Draw falling characters
-    for _, box in ipairs(self.boxes) do
-        -- Draw character image
+    -- Draw debug info if enabled
+    if config.debug.enabled then
         love.graphics.setColor(1, 1, 1)
-        love.graphics.draw(box.image, box.x, box.y)
+        self:safeSetFont(self.font)
         
-        -- Draw meaning text
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.setFont(self.smallFont)
-        local textWidth = self.smallFont:getWidth(box.meaning)
-        love.graphics.print(box.meaning, box.x + box.width/2 - textWidth/2, box.y - 20)
-    end
-    
-    -- Draw players
-    for _, controller in ipairs(self.controllers) do
-        controller.player:draw()
+        if config.debug.showFPS then
+            love.graphics.print("FPS: " .. love.timer.getFPS(), 10, 10)
+        end
         
-        -- Draw hitbox for debugging (red rectangle) only if debug mode is enabled
-        if self.debugMode then
-            local player = controller.player
-            -- Draw the expanded hitbox
-            love.graphics.setColor(1, 0, 0, 0.3)  -- Semi-transparent red
-            local expansionX = player.width * 1.5  -- 150% expansion on each side (3x total width)
-            local expansionY = player.height * 1.5  -- 150% expansion on each side (3x total height)
-            love.graphics.rectangle("fill", 
-                player.x - expansionX, 
-                player.y - expansionY, 
-                player.width + expansionX * 2, 
-                player.height + expansionY * 2)
-            
-            -- Draw the original player rectangle (in green)
-            love.graphics.setColor(0, 1, 0, 0.5)  -- Green for the player model
-            love.graphics.rectangle("line", player.x, player.y, player.width, player.height)
-            
-            -- Draw the collection hitbox (red outline)
-            love.graphics.setColor(1, 0, 0, 0.5)  -- Red for the collection hitbox
-            love.graphics.rectangle("line", 
-                player.x - expansionX, 
-                player.y - expansionY, 
-                player.width + expansionX * 2, 
-                player.height + expansionY * 2)
-            
-            -- Draw kick hitbox if player is kicking
-            if player.isKicking then
-                love.graphics.setColor(1, 0.5, 0, 0.5)  -- Orange for kick hitbox
-                local kickX
-                if player.velocity.x > 0 then
-                    -- Player moving right, kick hitbox on the right
-                    kickX = player.x + player.width + 100
-                else
-                    -- Player moving left or stationary, kick hitbox on the left
-                    kickX = player.x - 100 - 50  -- 50 is the width of the hitbox
+        if config.debug.showPlayerInfo then
+            love.graphics.print("Players: " .. #self.controllers, 10, 30)
+            love.graphics.print("Boxes: " .. #self.boxes, 10, 50)
+            love.graphics.print("Game Time: " .. math.floor(self.gameTimer), 10, 70)
+        end
+        
+        -- Draw hitboxes if enabled
+        if config.debug.showHitboxes then
+            for _, controller in ipairs(self.controllers) do
+                local player = controller.player
+                
+                -- Draw the expanded hitbox
+                love.graphics.setColor(1, 0, 0, 0.3)  -- Semi-transparent red
+                local expansionX = player.width * 1.5
+                local expansionY = player.height * 1.5
+                love.graphics.rectangle("fill", 
+                    player.x - expansionX, 
+                    player.y - expansionY, 
+                    player.width + expansionX * 2, 
+                    player.height + expansionY * 2)
+                
+                -- Draw the original player rectangle
+                love.graphics.setColor(0, 1, 0, 0.5)  -- Green for the player model
+                love.graphics.rectangle("line", player.x, player.y, player.width, player.height)
+                
+                -- Draw the collection hitbox
+                love.graphics.setColor(1, 0, 0, 0.5)  -- Red for the collection hitbox
+                love.graphics.rectangle("line", 
+                    player.x - expansionX, 
+                    player.y - expansionY, 
+                    player.width + expansionX * 2, 
+                    player.height + expansionY * 2)
+                
+                -- Draw kick hitbox if player is kicking
+                if player.isKicking then
+                    love.graphics.setColor(1, 0.5, 0, 0.5)  -- Orange for kick hitbox
+                    local kickX
+                    if player.velocity.x > 0 then
+                        kickX = player.x + player.width + 100
+                    else
+                        kickX = player.x - 100 - 50
+                    end
+                    local kickY = player.y + player.height/2 - 50
+                    love.graphics.rectangle("fill", kickX, kickY, 50, 100)
+                    love.graphics.setColor(1, 0.5, 0, 1)  -- Solid orange for outline
+                    love.graphics.rectangle("line", kickX, kickY, 50, 100)
                 end
-                local kickY = player.y + player.height/2 - 50  -- Centered vertically
-                love.graphics.rectangle("fill", kickX, kickY, 50, 100)  -- 50x100 kick hitbox
-                love.graphics.setColor(1, 0.5, 0, 1)  -- Solid orange for outline
-                love.graphics.rectangle("line", kickX, kickY, 50, 100)  -- Outline for kick hitbox
             end
         end
     end
@@ -553,80 +481,145 @@ end
 function Game:drawTitle()
     -- Draw title
     love.graphics.setColor(1, 1, 1)
-    love.graphics.setFont(self.titleFont)
+    
+    -- Set font
+    self:safeSetFont(self.titleFont)
+    
     local titleText = "Language Arena"
-    local titleWidth = self.titleFont:getWidth(titleText)
+    local titleWidth = 300  -- Fixed width for Switch
+    if self.titleFont then
+        titleWidth = self.titleFont:getWidth(titleText)
+    end
+    
     love.graphics.print(titleText, 600 - titleWidth/2, 100)
     
     -- Draw subtitle
-    love.graphics.setFont(self.subtitleFont)
+    self:safeSetFont(self.subtitleFont)
     local subtitleText = "Catch the matching characters!"
-    local subtitleWidth = self.subtitleFont:getWidth(subtitleText)
+    local subtitleWidth = 300  -- Fixed width for Switch
+    if self.subtitleFont then
+        subtitleWidth = self.subtitleFont:getWidth(subtitleText)
+    end
     love.graphics.print(subtitleText, 600 - subtitleWidth/2, 160)
     
     -- Draw bot count selection
-    love.graphics.setFont(self.instructionFont)
+    self:safeSetFont(self.instructionFont)
     local botText = string.format("Bots: %d (Press A to increase, B to decrease)", self.selectedBotCount)
-    local botWidth = self.instructionFont:getWidth(botText)
+    local botWidth = 300  -- Fixed width for Switch
+    if self.instructionFont then
+        botWidth = self.instructionFont:getWidth(botText)
+    end
     love.graphics.print(botText, 600 - botWidth/2, 220)
-    
-    -- Draw debug mode toggle
-    local debugText = string.format("Debug Mode: %s (Press Y to toggle)", self.debugMode and "ON" or "OFF")
-    local debugWidth = self.instructionFont:getWidth(debugText)
-    love.graphics.print(debugText, 600 - debugWidth/2, 260)
     
     -- Draw character selection instructions
     local charSelectText = "Use D-pad to select, X to toggle characters"
-    local charSelectWidth = self.instructionFont:getWidth(charSelectText)
+    local charSelectWidth = 300  -- Fixed width for Switch
+    if self.instructionFont then
+        charSelectWidth = self.instructionFont:getWidth(charSelectText)
+    end
     love.graphics.print(charSelectText, 600 - charSelectWidth/2, 300)
     
     -- Draw instructions
     local instructionText = "Press START to begin"
-    local instructionWidth = self.instructionFont:getWidth(instructionText)
+    local instructionWidth = 300  -- Fixed width for Switch
+    if self.instructionFont then
+        instructionWidth = self.instructionFont:getWidth(instructionText)
+    end
     love.graphics.print(instructionText, 600 - instructionWidth/2, 340)
     
     -- Draw character selection grid (moved below other text)
     self:drawCharacterGrid()
 end
 
+function Game:drawGame()
+    -- Draw current character
+    love.graphics.setColor(1, 1, 1)
+    self:safeSetFont(self.font)
+    
+    local currentCharText = "Current Character: " .. self.currentCharacter.character
+    local currentCharWidth = 300  -- Fixed width for Switch
+    if self.font then
+        currentCharWidth = self.font:getWidth(currentCharText)
+    end
+    love.graphics.print(currentCharText, 600 - currentCharWidth/2, 50)
+    
+    -- Draw game timer
+    local timeLeft = math.max(0, self.gameDuration - self.gameTimer)
+    local timerText = string.format("Time: %d", math.ceil(timeLeft))
+    local timerWidth = 300  -- Fixed width for Switch
+    if self.font then
+        timerWidth = self.font:getWidth(timerText)
+    end
+    love.graphics.print(timerText, 600 - timerWidth/2, 100)
+    
+    -- Draw boxes
+    for _, box in ipairs(self.boxes) do
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(box.image, box.x, box.y)
+    end
+    
+    -- Draw players
+    for _, controller in ipairs(self.controllers) do
+        controller.player:draw()
+    end
+end
+
 function Game:drawGameOver()
     -- Draw game over text
     love.graphics.setColor(1, 1, 1)
-    love.graphics.setFont(self.titleFont)
+    self:safeSetFont(self.titleFont)
     local gameOverText = "Game Over!"
-    local gameOverWidth = self.titleFont:getWidth(gameOverText)
+    local gameOverWidth = 300  -- Fixed width for Switch
+    if self.titleFont then
+        gameOverWidth = self.titleFont:getWidth(gameOverText)
+    end
     love.graphics.print(gameOverText, 600 - gameOverWidth/2, 200)
     
     -- Draw winner
     if self.winner then
-        love.graphics.setFont(self.subtitleFont)
+        self:safeSetFont(self.subtitleFont)
         local winnerText = string.format("Winner: %s with %d points!", 
             self.winner.name, self.winner.score)
-        local winnerWidth = self.subtitleFont:getWidth(winnerText)
+        local winnerWidth = 300  -- Fixed width for Switch
+        if self.subtitleFont then
+            winnerWidth = self.subtitleFont:getWidth(winnerText)
+        end
         love.graphics.print(winnerText, 600 - winnerWidth/2, 280)
     else
-        love.graphics.setFont(self.subtitleFont)
+        self:safeSetFont(self.subtitleFont)
         local tieText = "It's a tie!"
-        local tieWidth = self.subtitleFont:getWidth(tieText)
+        local tieWidth = 300  -- Fixed width for Switch
+        if self.subtitleFont then
+            tieWidth = self.subtitleFont:getWidth(tieText)
+        end
         love.graphics.print(tieText, 600 - tieWidth/2, 280)
     end
     
     -- Draw instructions
-    love.graphics.setFont(self.instructionFont)
+    self:safeSetFont(self.instructionFont)
     local instructionText = "Press BACK to return to title"
-    local instructionWidth = self.instructionFont:getWidth(instructionText)
+    local instructionWidth = 300  -- Fixed width for Switch
+    if self.instructionFont then
+        instructionWidth = self.instructionFont:getWidth(instructionText)
+    end
     love.graphics.print(instructionText, 600 - instructionWidth/2, 400)
     
     -- Draw final scores
-    love.graphics.setFont(self.smallFont)
+    self:safeSetFont(self.smallFont)
     local scoresTitle = "Final Scores:"
-    local scoresTitleWidth = self.smallFont:getWidth(scoresTitle)
+    local scoresTitleWidth = 300  -- Fixed width for Switch
+    if self.smallFont then
+        scoresTitleWidth = self.smallFont:getWidth(scoresTitle)
+    end
     love.graphics.print(scoresTitle, 600 - scoresTitleWidth/2, 450)
     
     local startY = 480
     for i, controller in ipairs(self.controllers) do
         local scoreText = string.format("Player %d: %d points", i, controller.player.score)
-        local scoreWidth = self.smallFont:getWidth(scoreText)
+        local scoreWidth = 300  -- Fixed width for Switch
+        if self.smallFont then
+            scoreWidth = self.smallFont:getWidth(scoreText)
+        end
         love.graphics.print(scoreText, 600 - scoreWidth/2, startY + (i-1) * 30)
     end
 end
@@ -677,7 +670,7 @@ function Game:spawnBox()
     else
         -- Spawn a random character (different from current)
         local enabledCharacters = {}
-        for i, char in ipairs(CHARACTERS) do
+        for i, char in ipairs(characters) do
             if self.characterEnabled[i] then
                 table.insert(enabledCharacters, char)
             end
@@ -685,7 +678,7 @@ function Game:spawnBox()
         
         -- If no enabled characters, use all characters
         if #enabledCharacters == 0 then
-            enabledCharacters = CHARACTERS
+            enabledCharacters = characters
         end
         
         repeat
@@ -694,67 +687,43 @@ function Game:spawnBox()
         logger:debug("Spawning random character with meaning: %s", randomCharacter.meaning)
     end
     
-    -- Load the character image from assets/characters directory
-    local imagePath = "assets/characters/" .. string.lower(randomCharacter.meaning) .. ".png"
-    local success, image = pcall(function()
-        return love.graphics.newImage(imagePath)
-    end)
+    -- Create a new box with the character
+    local box = {
+        x = love.math.random(100, 1100),  -- Random x position
+        y = -50,  -- Start above the screen
+        width = 48,  -- Match player width
+        height = 48,  -- Match player height
+        speed = love.math.random(100, 200),  -- Random fall speed
+        meaning = randomCharacter.meaning,
+        character = randomCharacter.character,
+        useCircle = config.rendering.useCirclesForCharacters  -- Store whether to use circle
+    }
     
-    if not success then
-        logger:warning("Failed to load character image: %s, using fallback", imagePath)
-        -- Create a fallback image if the character image can't be loaded
-        local size = 48
-        local canvas = love.graphics.newCanvas(size, size)
-        love.graphics.setCanvas(canvas)
-        
-        -- Draw circle background
-        love.graphics.setColor(randomCharacter.color)
-        love.graphics.circle("fill", size/2, size/2, size/2)
-        
-        -- Draw character text
-        love.graphics.setFont(self.cjkFont)
-        love.graphics.setColor(1, 1, 1)  -- White text
-        local text = randomCharacter.name
-        local textWidth = self.cjkFont:getWidth(text)
-        local textHeight = self.cjkFont:getHeight()
-        love.graphics.print(text, size/2 - textWidth/2, size/2 - textHeight/2)
-        
-        -- Reset canvas
-        love.graphics.setCanvas()
-        
-        image = canvas
+    -- Only load image if not using circles
+    if not box.useCircle then
+        -- Use preloaded image if available
+        if self.characterImages[randomCharacter.meaning] then
+            box.image = self.characterImages[randomCharacter.meaning]
+        else
+            -- Load the character image from assets/characters directory
+            local imagePath = "assets/characters/" .. string.lower(randomCharacter.meaning) .. ".png"
+            local success, loadedImage = pcall(function()
+                return love.graphics.newImage(imagePath)
+            end)
+            
+            if success then
+                box.image = loadedImage
+                -- Cache the image for future use
+                self.characterImages[randomCharacter.meaning] = loadedImage
+            else
+                logger:warning("Failed to load character image: %s, falling back to circle", imagePath)
+                box.useCircle = true  -- Fall back to circle if image loading fails
+            end
+        end
     end
     
-    -- Create a scaled down version of the image
-    local originalWidth = image:getWidth()
-    local originalHeight = image:getHeight()
-    local targetSize = 48 * 1.5  -- Increased target size by 1.5 times
-    
-    -- Create a canvas for the scaled image
-    local scaledCanvas = love.graphics.newCanvas(targetSize, targetSize)
-    love.graphics.setCanvas(scaledCanvas)
-    
-    -- Draw the original image scaled down
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.draw(image, 0, 0, 0, targetSize/originalWidth, targetSize/originalHeight)
-    
-    -- Reset canvas
-    love.graphics.setCanvas()
-    
-    local box = {
-        x = love.math.random(100, 1100),
-        y = -20,  -- Start above the screen
-        meaning = randomCharacter.meaning,
-        character = randomCharacter,  -- Store the entire character object
-        speed = love.math.random(50, 150),  -- Random fall speed
-        width = targetSize,
-        height = targetSize,
-        image = scaledCanvas  -- Store the scaled character image
-    }
     table.insert(self.boxes, box)
-    
-    logger:debug("Spawned character with meaning: %s at position (%.2f, %.2f)", 
-        box.meaning, box.x, box.y)
+    logger:debug("Box spawned at (%.2f, %.2f) with meaning: %s", box.x, box.y, box.meaning)
 end
 
 function Game:checkCharacterCollection(player, character)
@@ -783,14 +752,23 @@ end
 function Game:checkCollisions()
     -- Check player-box collisions
     for _, controller in ipairs(self.controllers) do
-        for i, box in ipairs(self.boxes) do
-            -- Use the new character collection function
-            local collision = self:checkCharacterCollection(controller.player, box)
-            logger:logCollision(controller.player, box, collision)
+        local player = controller.player
+        local playerLeft = player.x - player.width * 1.5
+        local playerRight = player.x + player.width * 2.5
+        local playerTop = player.y - player.height * 1.5
+        local playerBottom = player.y + player.height * 2.5
+        
+        for i = #self.boxes, 1, -1 do
+            local box = self.boxes[i]
             
-            if collision then
+            -- Quick AABB collision check
+            if not (box.x + box.width < playerLeft or 
+                   box.x > playerRight or 
+                   box.y + box.height < playerTop or 
+                   box.y > playerBottom) then
+                
                 -- Collect the character
-                controller.player:collectCharacter(box)
+                controller.player:collectApple(box)
                 
                 -- Check if the meaning matches the current character
                 if box.meaning == self.currentCharacter.meaning then
@@ -802,9 +780,9 @@ function Game:checkCollisions()
                         controller.player.name, box.meaning)
                 else
                     -- Wrong match! Subtract points or remove an character
-                    if #controller.player.collectedCharacters > 1 then
+                    if #controller.player.collectedApples > 1 then
                         -- Remove the oldest character from the stack
-                        table.remove(controller.player.collectedCharacters, 1)
+                        table.remove(controller.player.collectedApples, 1)
                         logger:info("Player %s collected wrong character: %s, removed oldest character", 
                             controller.player.name, box.meaning)
                     else
@@ -932,13 +910,16 @@ function Game:drawCharacterGrid()
     
     -- Draw grid title
     love.graphics.setColor(1, 1, 1)
-    love.graphics.setFont(self.font)
+    self:safeSetFont(self.font)
     local gridTitle = "Character Selection"
-    local gridTitleWidth = self.font:getWidth(gridTitle)
+    local gridTitleWidth = 300  -- Fixed width for Switch
+    if self.font then
+        gridTitleWidth = self.font:getWidth(gridTitle)
+    end
     love.graphics.print(gridTitle, gridX - gridTitleWidth/2, startY - 40)
     
     -- Draw grid cells
-    for i, char in ipairs(CHARACTERS) do
+    for i, char in ipairs(characters) do
         local row = math.floor((i-1) / cellsPerRow)
         local col = (i-1) % cellsPerRow
         
@@ -961,17 +942,24 @@ function Game:drawCharacterGrid()
         
         -- Draw character
         love.graphics.setColor(char.color)
-        love.graphics.setFont(self.cjkFont)
-        local charText = char.name
-        local charWidth = self.cjkFont:getWidth(charText)
-        local charHeight = self.cjkFont:getHeight()
+        self:safeSetFont(self.cjkFont)
+        local charText = char.character
+        local charWidth = 30  -- Fixed width for Switch
+        local charHeight = 30  -- Fixed height for Switch
+        if self.cjkFont then
+            charWidth = self.cjkFont:getWidth(charText)
+            charHeight = self.cjkFont:getHeight()
+        end
         love.graphics.print(charText, x + (cellSize - charWidth)/2, y + (cellSize - charHeight)/2)
         
         -- Draw meaning
         love.graphics.setColor(1, 1, 1)  -- White
-        love.graphics.setFont(self.smallFont)
+        self:safeSetFont(self.smallFont)
         local meaningText = char.meaning
-        local meaningWidth = self.smallFont:getWidth(meaningText)
+        local meaningWidth = 30  -- Fixed width for Switch
+        if self.smallFont then
+            meaningWidth = self.smallFont:getWidth(meaningText)
+        end
         love.graphics.print(meaningText, x + (cellSize - meaningWidth)/2, y + cellSize - 20)
         
         -- Draw enabled/disabled indicator
