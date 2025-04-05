@@ -106,7 +106,31 @@ function Game.new()
     local self = setmetatable({}, Game)
     self.controllers = {}
     self.boxes = {}
-    self.currentCharacter = CHARACTERS[1]
+    
+    -- Initialize character selection
+    self.characterEnabled = {}
+    for i, char in ipairs(CHARACTERS) do
+        self.characterEnabled[i] = true  -- All characters enabled by default
+    end
+    
+    -- Select a random starting character from enabled characters
+    local enabledCharacters = {}
+    for i, char in ipairs(CHARACTERS) do
+        if self.characterEnabled[i] then
+            table.insert(enabledCharacters, char)
+        end
+    end
+    
+    -- If no characters are enabled, use all characters
+    if #enabledCharacters == 0 then
+        enabledCharacters = CHARACTERS
+    end
+    
+    -- Select random character
+    self.currentCharacter = enabledCharacters[love.math.random(1, #enabledCharacters)]
+    logger:info("[INIT] Starting character randomized to: %s (%s)", 
+        self.currentCharacter.name, self.currentCharacter.meaning)
+    
     self.characterTimer = 0
     self.characterChangeTime = love.math.random(15, 25)  -- Random time between 15-25 seconds
     self.spawnTimer = 0
@@ -118,21 +142,22 @@ function Game.new()
     self.subtitleFont = love.graphics.newFont(24)
     self.instructionFont = love.graphics.newFont(18)
     self.cjkFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 24)  -- CJK font for Chinese/Japanese characters
-    self.gameState = "title"  -- title, game, gameover
+    self.countdownFont = love.graphics.newFont(120)  -- Large font for countdown
+    self.gameState = "title"  -- title, countdown, game, gameover
     self.winner = nil
     self.gameTimer = 0
     self.gameDuration = 120  -- 2 minutes game time
     self.botCount = 0  -- Default to no bots
     self.selectedBotCount = 0  -- Currently selected bot count in menu
     self.debugMode = true  -- Debug mode for hitbox visualization
-    
-    -- Character selection
-    self.characterEnabled = {}
-    for i, char in ipairs(CHARACTERS) do
-        self.characterEnabled[i] = true  -- All characters enabled by default
-    end
     self.selectedCharacterIndex = 1  -- Currently selected character in the grid
     self.characterSelectionCooldown = 0  -- Cooldown timer for character selection
+    
+    -- Countdown variables
+    self.countdownTimer = 0
+    self.countdownNumber = 3
+    self.countdownDuration = 1  -- Each number shows for 1 second
+    self.countdownAlpha = 1  -- For fade effect
     
     -- Setup controllers
     self:setupControllers()
@@ -154,7 +179,9 @@ function Game:setupControllers()
     for i = 1, math.min(4, #joysticks) do
         local joystick = joysticks[i]
         if joystick:isGamepad() then
-            local player = Player.new(100 + (i-1) * 200, 600 - 500,  -- Position higher on the screen (changed from 570 to 500)
+            -- Alternate player positions between left and right sides
+            local xPos = i % 2 == 1 and 100 or 1100  -- Left side for odd numbers, right side for even
+            local player = Player.new(xPos, 600 - 500,  -- Position higher on the screen
                 {love.math.random(), love.math.random(), love.math.random()},
                 {
                     controller = i,
@@ -190,7 +217,9 @@ function Game:setupControllers()
         -- Add bots
         for i = 1, botsToAdd do
             local botIndex = #self.controllers + 1
-            local player = Player.new(100 + (botIndex-1) * 200, 600 - 500,
+            -- Alternate bot positions between left and right sides
+            local xPos = botIndex % 2 == 1 and 100 or 1100  -- Left side for odd numbers, right side for even
+            local player = Player.new(xPos, 600 - 500,
                 {love.math.random(), love.math.random(), love.math.random()},
                 {
                     controller = botIndex,
@@ -227,14 +256,17 @@ function Game:update(dt)
             -- Only process input for non-bot controllers
             if not controller.isBot then
                 if controller.joystick:isGamepadDown(controller.player.controls.start) then
-                    self.gameState = "game"
+                    self.gameState = "countdown"  -- Start countdown instead of going directly to game
+                    self.countdownTimer = 0
+                    self.countdownNumber = 3
+                    self.countdownAlpha = 1
                     self.gameTimer = 0
                     self.botCount = self.selectedBotCount  -- Set the actual bot count when starting the game
                     
                     -- Setup controllers again to add bots
                     self:setupControllers()
                     
-                    logger:info("Game started with %d bots", self.botCount)
+                    logger:info("Starting countdown sequence")
                     break
                 end
             end
@@ -313,6 +345,33 @@ function Game:update(dt)
                     logger:info("Debug mode %s", self.debugMode and "enabled" or "disabled")
                     break
                 end
+            end
+        end
+        return
+    elseif self.gameState == "countdown" then
+        -- Update countdown
+        self.countdownTimer = self.countdownTimer + dt
+        
+        -- Fade effect
+        if self.countdownTimer < self.countdownDuration * 0.8 then
+            self.countdownAlpha = 1
+        else
+            self.countdownAlpha = 1 - ((self.countdownTimer - self.countdownDuration * 0.8) / (self.countdownDuration * 0.2))
+        end
+        
+        -- Check if it's time to change number
+        if self.countdownTimer >= self.countdownDuration then
+            self.countdownTimer = 0
+            self.countdownNumber = self.countdownNumber - 1
+            self.countdownAlpha = 1
+            
+            if self.countdownNumber < 0 then
+                -- Countdown finished, start the game
+                self.gameState = "game"
+                logger:info("Countdown finished, game starting")
+            elseif self.countdownNumber == 0 then
+                -- Show "FIGHT!" instead of 0
+                logger:info("Showing FIGHT!")
             end
         end
         return
@@ -437,11 +496,35 @@ function Game:draw()
     if self.gameState == "title" then
         self:drawTitle()
         return
+    elseif self.gameState == "countdown" then
+        -- Draw the game elements in the background
+        self:drawGameElements()
+        
+        -- Draw the countdown number
+        love.graphics.setColor(1, 1, 1, self.countdownAlpha)
+        love.graphics.setFont(self.countdownFont)
+        
+        local countdownText
+        if self.countdownNumber > 0 then
+            countdownText = tostring(self.countdownNumber)
+        else
+            countdownText = "FIGHT!"
+        end
+        
+        local textWidth = self.countdownFont:getWidth(countdownText)
+        local textHeight = self.countdownFont:getHeight()
+        love.graphics.print(countdownText, 600 - textWidth/2, 300 - textHeight/2)
+        return
     elseif self.gameState == "gameover" then
         self:drawGameOver()
         return
     end
     
+    -- Draw game elements
+    self:drawGameElements()
+end
+
+function Game:drawGameElements()
     -- Draw timer and scoreboard on the left side
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(self.smallFont)
@@ -486,7 +569,7 @@ function Game:draw()
     love.graphics.setFont(self.smallFont)
     love.graphics.setColor(1, 1, 1)  -- White
     local meaningWidth = self.smallFont:getWidth(self.currentCharacter.meaning)
-    love.graphics.print(self.currentCharacter.meaning, 750 - meaningWidth/2, 150)  -- Changed from 50 to 150
+    love.graphics.print(self.currentCharacter.meaning, 750 - meaningWidth/2, 75)  -- Changed from 50 to 150
     
     -- Draw falling characters
     for _, box in ipairs(self.boxes) do
@@ -746,15 +829,15 @@ function Game:spawnBox()
         y = -20,  -- Start above the screen
         meaning = randomCharacter.meaning,
         character = randomCharacter,  -- Store the entire character object
-        speed = love.math.random(50, 150),  -- Random fall speed
+        speed = love.math.random(100, 200),  -- Increased minimum speed from 50 to 100
         width = targetSize,
         height = targetSize,
         image = scaledCanvas  -- Store the scaled character image
     }
     table.insert(self.boxes, box)
     
-    logger:debug("Spawned character with meaning: %s at position (%.2f, %.2f)", 
-        box.meaning, box.x, box.y)
+    logger:debug("Spawned character with meaning: %s at position (%.2f, %.2f) with speed %.2f", 
+        box.meaning, box.x, box.y, box.speed)
 end
 
 function Game:checkCharacterCollection(player, character)
@@ -801,18 +884,10 @@ function Game:checkCollisions()
                     logger:info("Player %s collected correct character: %s", 
                         controller.player.name, box.meaning)
                 else
-                    -- Wrong match! Subtract points or remove an character
-                    if #controller.player.collectedCharacters > 1 then
-                        -- Remove the oldest character from the stack
-                        table.remove(controller.player.collectedCharacters, 1)
-                        logger:info("Player %s collected wrong character: %s, removed oldest character", 
-                            controller.player.name, box.meaning)
-                    else
-                        -- If no characters in stack, subtract points
-                        controller.player.score = math.max(0, controller.player.score - 5)
-                        logger:info("Player %s collected wrong character: %s, lost 5 points", 
-                            controller.player.name, box.meaning)
-                    end
+                    -- Wrong match! Subtract points
+                    controller.player.score = controller.player.score - 10
+                    logger:info("Player %s collected wrong character: %s (-10 points)", 
+                        controller.player.name, box.meaning)
                 end
                 
                 table.remove(self.boxes, i)
@@ -868,56 +943,6 @@ function Game:checkCollisions()
                 end
             end
         end
-    end
-end
-
-function Game:checkCollision(a, b)
-    -- Check if either object is a player and the other is a character
-    local isPlayerCharacterCollision = (a.width == 415 and a.height == 532) or (b.width == 415 and b.height == 532)
-    
-    if isPlayerCharacterCollision then
-        -- For player-character collisions, use rectangle collision with expanded hitbox
-        local player = (a.width == 415 and a.height == 532) and a or b
-        local character = (a.width == 415 and a.height == 532) and b or a
-        
-        -- Calculate the expanded hitbox (3x larger than the player model)
-        local expansionX = player.width * 1.5  -- 150% expansion on each side (3x total width)
-        local expansionY = player.height * 1.5  -- 150% expansion on each side (3x total height)
-        
-        -- Check if character is within or touching the expanded player's rectangle
-        local playerLeft = player.x - expansionX
-        local playerRight = player.x + player.width + expansionX
-        local playerTop = player.y - expansionY
-        local playerBottom = player.y + player.height + expansionY
-        
-        local characterLeft = character.x
-        local characterRight = character.x + character.width
-        local characterTop = character.y
-        local characterBottom = character.y + character.height
-        
-        -- Check for overlap
-        return not (characterRight < playerLeft or 
-                   characterLeft > playerRight or 
-                   characterBottom < playerTop or 
-                   characterTop > playerBottom)
-    else
-        -- For other collisions (player-player), use the existing circle-based collision
-        local aRadius = a.width and a.width/3 or 10
-        local bRadius = b.width and b.width/3 or 10
-        
-        -- Calculate center points
-        local aCenterX = a.x + (a.width or 415)/2
-        local aCenterY = a.y + (a.height or 532)/2
-        local bCenterX = b.x + (b.width or 20)/2
-        local bCenterY = b.y + (b.height or 20)/2
-        
-        -- Calculate distance between centers
-        local dx = aCenterX - bCenterX
-        local dy = aCenterY - bCenterY
-        local distance = math.sqrt(dx*dx + dy*dy)
-        
-        -- Check if distance is less than sum of radii
-        return distance < (aRadius + bRadius)
     end
 end
 

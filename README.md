@@ -34,6 +34,27 @@ Language Arena is a competitive multiplayer game where players learn Chinese or 
 2. Build the game using the LÖVE Potion bundler
 3. Install the resulting NRO file on your Switch
 
+## Nintendo Switch Installation
+
+Once the files are done extracting, transfer the executable (3dsx, nro, wuhb) binary to your microSD card:
+
+```
+sdmc:/switch/lovepotion/lovepotion.nro
+```
+
+It is likely that the parent directory does not exist yet, so the folder will need to be created.
+
+Now create a folder called `game` inside of the `lovepotion` directory. Inside of this will be your source files for what LÖVE Potion will be running. Inside of `game` should be a file named `main.lua`. The content of this file is the main entry point, and for this tutorial will be a basic "Hello World".
+
+After all files have been created, simply launch LÖVE Potion from the Homebrew Menu (3DS, Switch) or Home Menu (Wii U) and it will run your game.
+
+### Switch-Specific Notes
+
+- The game is configured to run at 1280x720 resolution on the Switch
+- Source Han Sans font is not used on the Switch platform to prevent crashes
+- Controller support is optimized for the Switch's gamepad
+- Error logging is available to help diagnose any issues
+
 ## Controls
 
 - **Left Analog Stick**: Move character (works with both Joy-Cons and Pro Controller)
