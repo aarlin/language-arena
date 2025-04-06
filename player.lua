@@ -1,5 +1,6 @@
 local logger = require("logger")  -- Import the logger
 local config = require("config")  -- Import the config module
+local Constants = require("constants")  -- Import the constants module
 
 -- Animation states
 local ANIMATION_STATES = {
@@ -13,6 +14,32 @@ local ANIMATION_STATES = {
     KICK = "kick"  -- New kick animation state
 }
 
+-- Helper function to set color with alpha
+local function setColor(colorName, alpha)
+    -- If colorName is already a table (RGB values), use it directly
+    if type(colorName) == "table" then
+        if alpha then
+            love.graphics.setColor(colorName[1], colorName[2], colorName[3], alpha)
+        else
+            love.graphics.setColor(colorName)
+        end
+        return
+    end
+    
+    -- Otherwise, look up the color in Constants.COLORS
+    local color = Constants.COLORS[colorName]
+    if color then
+        if alpha then
+            love.graphics.setColor(color[1], color[2], color[3], alpha)
+        else
+            love.graphics.setColor(color)
+        end
+    else
+        logger:error("Unknown color: %s", tostring(colorName))
+        love.graphics.setColor(Constants.COLORS.WHITE)  -- Default to white
+    end
+end
+
 -- Player class
 local Player = {}
 Player.__index = Player
@@ -24,48 +51,62 @@ function Player.new(x, y, color, controls)
     self.color = color
     self.controls = controls or {}
     self.velocity = {x = 0, y = 0}
-    self.speed = 300
-    self.runSpeed = 600
-    self.jumpForce = -500
-    self.gravity = 1000
+    self.speed = Constants.PLAYER_SPEED
+    self.runSpeed = Constants.PLAYER_RUN_SPEED
+    self.jumpForce = -Constants.PLAYER_JUMP_FORCE  -- Make jump force negative to move upward
+    self.gravity = Constants.PLAYER_GRAVITY
     self.isJumping = false
     self.isRunning = false
     self.isKicking = false
     self.kickTimer = 0
-    self.kickDuration = 0.3
+    self.kickDuration = Constants.PLAYER_KICK_DURATION
     self.score = 0
     self.collectedApples = {}
     self.name = "Player " .. (controls and controls.controller or "Unknown")
     self.facingRight = true
     self.currentAnimation = ANIMATION_STATES.IDLE
     self.animationTimer = 0
-    self.animationSpeed = 0.1
+    self.animationSpeed = Constants.PLAYER_ANIMATION_SPEED
     self.currentFrame = 1
     self.animations = {}
-    self.width = 24  -- Reduced from 48 to 24 (half size)
-    self.height = 24 -- Reduced from 48 to 24 (half size)
+    self.width = Constants.PLAYER_WIDTH
+    self.height = Constants.PLAYER_HEIGHT
     
     -- Hitbox properties
-    self.hitboxWidth = 50
-    self.hitboxHeight = 50
-    self.hitboxOffset = 10  -- Distance from player center
-    self.hitboxXOffset = 0  -- No horizontal offset
-    self.hitboxYOffset = 100  -- Move hitbox 100px down
+    self.hitboxWidth = Constants.HITBOX_WIDTH
+    self.hitboxHeight = Constants.HITBOX_HEIGHT
+    self.hitboxOffset = Constants.HITBOX_OFFSET  -- Distance from player center
+    self.hitboxXOffset = Constants.HITBOX_X_OFFSET  -- No horizontal offset
+    self.hitboxYOffset = Constants.HITBOX_Y_OFFSET  -- Move hitbox 100px down
     
     -- Invulnerability and immobility properties
     self.isInvulnerable = false
     self.invulnerabilityTimer = 0
-    self.invulnerabilityDuration = 1.0
+    self.invulnerabilityDuration = Constants.PLAYER_INVULNERABILITY_DURATION
     self.isImmobile = false
     self.immobilityTimer = 0
-    self.immobilityDuration = 0.5
+    self.immobilityDuration = Constants.PLAYER_IMMOBILITY_DURATION
     
     -- Check if running on Nintendo Switch
     self.isSwitch = love._console == "Switch"
     
-    -- Initialize fonts for Switch
+    -- Initialize fonts based on platform
     if self.isSwitch then
-        self.font = love.graphics.newFont("standard", 16)
+        -- On Switch, use the "standard" font
+        self.font = love.graphics.newFont("standard", Constants.FONT_SIZE)
+        self.smallFont = love.graphics.newFont("standard", Constants.SMALL_FONT_SIZE)
+        self.titleFont = love.graphics.newFont("standard", Constants.TITLE_FONT_SIZE)
+        self.subtitleFont = love.graphics.newFont("standard", Constants.SUBTITLE_FONT_SIZE)
+        self.instructionFont = love.graphics.newFont("standard", Constants.INSTRUCTION_FONT_SIZE)
+        self.cjkFont = love.graphics.newFont("standard", Constants.CJK_FONT_SIZE)
+    else
+        -- On PC, use SourceHanSansSC font
+        self.font = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.FONT_SIZE)
+        self.smallFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.SMALL_FONT_SIZE)
+        self.titleFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.TITLE_FONT_SIZE)
+        self.subtitleFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.SUBTITLE_FONT_SIZE)
+        self.instructionFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.INSTRUCTION_FONT_SIZE)
+        self.cjkFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.CJK_FONT_SIZE)
     end
     
     -- Load animations
@@ -272,14 +313,14 @@ function Player:update(dt)
         if self.x < 0 then
             self.x = 0
             self.velocity.x = 0
-        elseif self.x > 1200 - self.width then
-            self.x = 1200 - self.width
+        elseif self.x > Constants.SCREEN_WIDTH - self.width then
+            self.x = Constants.SCREEN_WIDTH - self.width
             self.velocity.x = 0
         end
         
         -- Ground collision
-        if self.y > 600 - self.height then
-            self.y = 600 - self.height
+        if self.y > Constants.SCREEN_HEIGHT - self.height then
+            self.y = Constants.SCREEN_HEIGHT - self.height
             self.velocity.y = 0
             self.isJumping = false
             if self.currentAnimation == ANIMATION_STATES.JUMP then
@@ -364,8 +405,8 @@ function Player:update(dt)
 end
 
 function Player:draw()
-    -- Set color based on player color
-    love.graphics.setColor(self.color)
+    -- Set color based on player's color
+    setColor(self.color)
     
     -- Draw the current animation frame
     if self.animations[self.currentAnimation] and self.animations[self.currentAnimation].frames[self.currentFrame] then
@@ -374,24 +415,24 @@ function Player:draw()
         -- Save the current transformation
         love.graphics.push()
         
-        -- Set the scale to 0.5
-        love.graphics.scale(0.5, 0.5)
+        -- Set the scale to the player scale constant
+        love.graphics.scale(Constants.PLAYER_SCALE, Constants.PLAYER_SCALE)
         
         -- Calculate draw position with offset based on facing direction
         local drawX = self.x + self.width/2
         if self.facingRight then
             -- Move character slightly to the left when facing right
-            drawX = drawX - 100
+            drawX = drawX - Constants.MODEL_OFFSET_X
         else
             -- Move character slightly to the right when facing left
-            drawX = drawX + 100
+            drawX = drawX + Constants.MODEL_OFFSET_X
         end
         
         -- Flip the image if facing left
         if not self.facingRight then
-            love.graphics.draw(image, (drawX + self.width) * 2, self.y * 2, 0, -1, 1)
+            love.graphics.draw(image, (drawX + self.width) * Constants.PLAYER_DRAW_MULTIPLIER, self.y * Constants.PLAYER_DRAW_MULTIPLIER, 0, -1, 1)
         else
-            love.graphics.draw(image, drawX * 2, self.y * 2)
+            love.graphics.draw(image, drawX * Constants.PLAYER_DRAW_MULTIPLIER, self.y * Constants.PLAYER_DRAW_MULTIPLIER)
         end
         
         -- Restore the transformation
@@ -409,35 +450,35 @@ function Player:draw()
         local hitboxY = self.y + self.height/2 - self.hitboxHeight/2 + self.hitboxYOffset  -- Apply vertical offset (now 100)
 
         -- Draw player model box at offset position
-        love.graphics.setColor(1, 0, 0, 0.5)  -- Semi-transparent red
+        setColor("RED", 0.5)  -- Semi-transparent red
         local modelX = hitboxX
         if self.facingRight then
             -- Move character slightly to the left when facing right
-            modelX = modelX - 100
+            modelX = modelX - Constants.MODEL_OFFSET_X
         else
             -- Move character slightly to the right when facing left
-            modelX = modelX + 100
+            modelX = modelX + Constants.MODEL_OFFSET_X
         end
-        local modelY = hitboxY + 50  -- 50px down
+        local modelY = hitboxY + Constants.MODEL_OFFSET_Y  -- 50px down
         love.graphics.rectangle("fill", modelX, modelY, self.hitboxWidth, self.hitboxHeight)
-        love.graphics.setColor(1, 1, 1)  -- White text
-        love.graphics.print("Player Model", modelX, modelY - 20)
+        setColor("WHITE")  -- White text
+        love.graphics.print("Player Model", modelX, modelY - Constants.DEBUG_LABEL_OFFSET)
 
         -- Draw hitbox
-        love.graphics.setColor(0, 1, 0, 0.5)  -- Semi-transparent green
+        setColor("GREEN", 0.5)  -- Semi-transparent green
         love.graphics.rectangle("fill", hitboxX, hitboxY, self.hitboxWidth, self.hitboxHeight)
-        love.graphics.print("Hitbox", hitboxX, hitboxY - 40)
+        love.graphics.print("Hitbox", hitboxX, hitboxY - Constants.DEBUG_LABEL_OFFSET * 2)
 
         -- Draw collection box at offset position
-        love.graphics.setColor(0, 0, 1, 0.5)  -- Semi-transparent blue
-        local collectionX = hitboxX + (self.facingRight and 50 or -50)  -- 50px right if facing right, 50px left if facing left
-        local collectionY = hitboxY + 50  -- 50px down
+        setColor("BLUE", 0.5)  -- Semi-transparent blue
+        local collectionX = hitboxX + (self.facingRight and Constants.COLLECTION_OFFSET_X or -Constants.COLLECTION_OFFSET_X)  -- 50px right if facing right, 50px left if facing left
+        local collectionY = hitboxY + Constants.COLLECTION_OFFSET_Y  -- 50px down
         love.graphics.rectangle("fill", collectionX, collectionY, self.hitboxWidth, self.hitboxHeight)
-        love.graphics.print("Collection Box", collectionX, collectionY - 60)
+        love.graphics.print("Collection Box", collectionX, collectionY - Constants.DEBUG_LABEL_OFFSET * 3)
     end
     
     -- Draw player name
-    love.graphics.setColor(1, 1, 1)  -- White
+    setColor("WHITE")  -- White
     -- Use system font on Switch
     if self.isSwitch then
         if self.font then
@@ -460,23 +501,23 @@ function Player:draw()
     
     -- Draw invulnerability indicator
     if self.isInvulnerable then
-        love.graphics.setColor(0, 0, 1, 0.7)  -- Blue
+        setColor("BLUE", 0.7)  -- Blue
         love.graphics.circle("fill", self.x + self.width/2, self.y + self.height/2, 30)
     end
     
     -- Draw immobility indicator
     if self.isImmobile then
-        love.graphics.setColor(1, 0.5, 0, 0.7)  -- Orange
+        setColor("ORANGE", 0.7)  -- Orange
         love.graphics.rectangle("fill", self.x, self.y - 30, self.width, 5)
     end
     
     -- Draw collected apples
     for i, apple in ipairs(self.collectedApples) do
-        love.graphics.setColor(1, 0, 0)  -- Red apple
+        setColor("RED")  -- Red apple
         love.graphics.circle("fill", self.x + 20 + (i-1) * 30, self.y - 30, 10)
         
         -- Draw stem
-        love.graphics.setColor(0, 0.8, 0)  -- Green stem
+        setColor("GREEN")  -- Green stem
         love.graphics.rectangle("fill", self.x + 20 + (i-1) * 30 - 1, self.y - 40, 2, 5)
     end
 end
@@ -484,6 +525,11 @@ end
 function Player:setAnimation(animation)
     -- Don't change animation if currently kicking, unless explicitly setting to kick
     if self.isKicking and animation ~= ANIMATION_STATES.KICK then
+        return
+    end
+    
+    -- Don't change animation if currently jumping, unless explicitly setting to jump or kick
+    if self.isJumping and animation ~= ANIMATION_STATES.JUMP and animation ~= ANIMATION_STATES.KICK then
         return
     end
     
@@ -550,12 +596,12 @@ function Player:isAppleInHitbox(apple)
     local modelX = hitboxX
     if self.facingRight then
         -- Move character slightly to the left when facing right
-        modelX = modelX - 100
+        modelX = modelX - Constants.MODEL_OFFSET_X
     else
         -- Move character slightly to the right when facing left
-        modelX = modelX + 100
+        modelX = modelX + Constants.MODEL_OFFSET_X
     end
-    local modelY = hitboxY + 50  -- 50px down
+    local modelY = hitboxY + Constants.MODEL_OFFSET_Y  -- 50px down
     
     -- Check if apple is within player model box
     return apple.x >= modelX and 

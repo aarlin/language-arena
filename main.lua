@@ -86,14 +86,19 @@ function love.gamepadreleased(joystick, button)
     end
 end
 
+-- Handle joystick events
 function love.joystickadded(joystick)
-    if joystick:isGamepad() then
+    logger:info("Joystick added: %s", joystick:getName())
+    if game then
         game:setupControllers()
     end
 end
 
 function love.joystickremoved(joystick)
-    game:setupControllers()
+    logger:info("Joystick removed: %s", joystick:getName())
+    if game then
+        game:setupControllers()
+    end
 end
 
 function love.keypressed(key)

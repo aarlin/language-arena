@@ -2,6 +2,7 @@ local Player = require("player")
 local characters = require("characters")
 local logger = require("logger")  -- Import the logger
 local config = require("config")  -- Import the config module
+local Constants = require("constants")  -- Import the constants module
 
 -- Import ANIMATION_STATES from player.lua
 local ANIMATION_STATES = {
@@ -25,9 +26,9 @@ function Game.new()
     self.boxes = {}
     self.currentCharacter = characters[1]
     self.characterTimer = 0
-    self.characterChangeTime = love.math.random(15, 25)  -- Random time between 15-25 seconds
+    self.characterChangeTime = love.math.random(Constants.CHARACTER_CHANGE_MIN_TIME, Constants.CHARACTER_CHANGE_MAX_TIME)
     self.spawnTimer = 0
-    self.spawnInterval = 2  -- Increased from 1 to 2 seconds to reduce object creation
+    self.spawnInterval = Constants.SPAWN_INTERVAL
     self.background = love.graphics.newImage("assets/background/forest.jpg")
     
     -- Check if running on Nintendo Switch
@@ -38,20 +39,20 @@ function Game.new()
     -- Use system fonts with appropriate sizes
     if self.isSwitch then
         -- On Switch, use the "standard" font
-        self.font = love.graphics.newFont("standard", 24)
-        self.smallFont = love.graphics.newFont("standard", 16)
-        self.titleFont = love.graphics.newFont("standard", 48)
-        self.subtitleFont = love.graphics.newFont("standard", 24)
-        self.instructionFont = love.graphics.newFont("standard", 18)
-        self.cjkFont = love.graphics.newFont("standard", 24)
+        self.font = love.graphics.newFont("standard", Constants.FONT_SIZE)
+        self.smallFont = love.graphics.newFont("standard", Constants.SMALL_FONT_SIZE)
+        self.titleFont = love.graphics.newFont("standard", Constants.TITLE_FONT_SIZE)
+        self.subtitleFont = love.graphics.newFont("standard", Constants.SUBTITLE_FONT_SIZE)
+        self.instructionFont = love.graphics.newFont("standard", Constants.INSTRUCTION_FONT_SIZE)
+        self.cjkFont = love.graphics.newFont("standard", Constants.CJK_FONT_SIZE)
     else
         -- On PC, use SourceHanSansSC font
-        self.font = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 24)
-        self.smallFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 16)
-        self.titleFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 48)
-        self.subtitleFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 24)
-        self.instructionFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 18)
-        self.cjkFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", 24)
+        self.font = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.FONT_SIZE)
+        self.smallFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.SMALL_FONT_SIZE)
+        self.titleFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.TITLE_FONT_SIZE)
+        self.subtitleFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.SUBTITLE_FONT_SIZE)
+        self.instructionFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.INSTRUCTION_FONT_SIZE)
+        self.cjkFont = love.graphics.newFont("assets/fonts/SourceHanSansSC-Regular.otf", Constants.CJK_FONT_SIZE)
     end
     
     -- Helper function to safely set font
@@ -64,7 +65,7 @@ function Game.new()
     self.gameState = "title"  -- title, game, gameover
     self.winner = nil
     self.gameTimer = 0
-    self.gameDuration = 120  -- 2 minutes game time
+    self.gameDuration = Constants.GAME_DURATION
     self.botCount = 0  -- Default to no bots
     self.selectedBotCount = 0  -- Currently selected bot count in menu
     
@@ -111,12 +112,18 @@ function Game:setupControllers()
     for i = 1, math.min(4, #joysticks) do
         local joystick = joysticks[i]
         if joystick:isGamepad() then
-            local player = Player.new(100 + (i-1) * 200, 600 - 500,  -- Position higher on the screen (changed from 570 to 500)
+            -- Check if we're on Nintendo Switch
+            local isSwitch = love._console == "Switch"
+            
+            -- Determine which stick to use based on platform
+            local movementStick = isSwitch and "leftx" or "rightx"
+            
+            local player = Player.new(100 + (i-1) * 200, Constants.GROUND_Y - 500,  -- Position higher on the screen
                 {love.math.random(), love.math.random(), love.math.random()},
                 {
                     controller = i,
-                    left = "leftx",  -- Use left stick for movement
-                    right = "leftx", -- Use left stick for movement
+                    left = movementStick,  -- Use appropriate stick for movement
+                    right = movementStick, -- Use appropriate stick for movement
                     jump = "a",      -- A button on Switch
                     down = "b",      -- B button on Switch (now used for running)
                     kick = "leftshoulder",     -- X button on Switch
@@ -130,7 +137,7 @@ function Game:setupControllers()
                 player = player,
                 isBot = false
             })
-            logger:info("Controller %d setup: %s", i, joystick:getName())
+            logger:info("Controller %d setup: %s (using %s for movement)", i, joystick:getName(), movementStick)
         end
     end
     
@@ -146,7 +153,7 @@ function Game:setupControllers()
         -- Add bots
         for i = 1, botsToAdd do
             local botIndex = #self.controllers + 1
-            local player = Player.new(100 + (botIndex-1) * 200, 600 - 500,
+            local player = Player.new(100 + (botIndex-1) * 200, Constants.GROUND_Y - 500,
                 {love.math.random(), love.math.random(), love.math.random()},
                 {
                     controller = botIndex,
@@ -215,7 +222,7 @@ function Game:update(dt)
                 -- Character selection with D-pad (only if cooldown is 0)
                 if self.characterSelectionCooldown <= 0 then
                     if controller.joystick:isGamepadDown("dpup") then
-                        self.selectedCharacterIndex = self.selectedCharacterIndex - 8
+                        self.selectedCharacterIndex = self.selectedCharacterIndex - Constants.GRID_CELLS_PER_ROW
                         if self.selectedCharacterIndex < 1 then
                             self.selectedCharacterIndex = #characters
                         end
@@ -224,7 +231,7 @@ function Game:update(dt)
                         break
                     end
                     if controller.joystick:isGamepadDown("dpdown") then
-                        self.selectedCharacterIndex = self.selectedCharacterIndex + 8
+                        self.selectedCharacterIndex = self.selectedCharacterIndex + Constants.GRID_CELLS_PER_ROW
                         if self.selectedCharacterIndex > #characters then
                             self.selectedCharacterIndex = 1
                         end
@@ -303,7 +310,7 @@ function Game:update(dt)
         
         self.currentCharacter = characters[newIndex]
         self.characterTimer = 0
-        self.characterChangeTime = love.math.random(15, 25)  -- Random time between 15-25 seconds
+        self.characterChangeTime = love.math.random(Constants.CHARACTER_CHANGE_MIN_TIME, Constants.CHARACTER_CHANGE_MAX_TIME)
     end
     
     -- Update spawn timer
@@ -319,7 +326,7 @@ function Game:update(dt)
         box.y = box.y + box.speed * dt
         
         -- Remove if off screen
-        if box.y > 800 then
+        if box.y > Constants.SCREEN_HEIGHT then
             table.remove(self.boxes, i)
             logger:debug("Box removed (off screen)")
         end
@@ -379,7 +386,7 @@ end
 
 function Game:draw()
     -- Draw background
-    love.graphics.setColor(1, 1, 1)
+    love.graphics.setColor(Constants.COLORS.WHITE)
     love.graphics.draw(self.background, 0, 0)
     
     -- Draw based on game state
@@ -390,17 +397,17 @@ function Game:draw()
         for _, box in ipairs(self.boxes) do
             if box.useCircle then
                 -- Draw circle for character
-                love.graphics.setColor(1, 0.8, 0)  -- Yellow color for circles
+                love.graphics.setColor(Constants.COLORS.YELLOW)  -- Yellow color for circles
                 love.graphics.circle("fill", box.x + box.width/2, box.y + box.height/2, box.width/2)
                 -- Draw character meaning in the circle
-                love.graphics.setColor(0, 0, 0)  -- Black text
+                love.graphics.setColor(Constants.COLORS.BLACK)  -- Black text
                 self:safeSetFont(self.smallFont)
                 local text = box.character
                 local textWidth = self.smallFont:getWidth(text)
                 love.graphics.print(text, box.x + (box.width - textWidth)/2, box.y + box.height/2 - 8)
             else
                 -- Draw character image
-                love.graphics.setColor(1, 1, 1)
+                love.graphics.setColor(Constants.COLORS.WHITE)
                 love.graphics.draw(box.image, box.x, box.y)
             end
         end
@@ -417,7 +424,7 @@ function Game:draw()
     
     -- Draw debug info if enabled
     if config.debug.enabled then
-        love.graphics.setColor(1, 1, 1)
+        love.graphics.setColor(Constants.COLORS.WHITE)
         self:safeSetFont(self.font)
         
         if config.debug.showFPS then
@@ -436,40 +443,40 @@ function Game:draw()
                 local player = controller.player
                 
                 -- Draw the expanded hitbox
-                love.graphics.setColor(1, 0, 0, 0.3)  -- Semi-transparent red
-                local expansionX = player.width * 1.5
-                local expansionY = player.height * 1.5
+                love.graphics.setColor(Constants.COLORS.RED_TRANSPARENT)  -- Semi-transparent red
+                local expansionX = player.width * Constants.HITBOX_EXPANSION_X
+                local expansionY = player.height * Constants.HITBOX_EXPANSION_Y
                 love.graphics.rectangle("fill", 
                     player.x - expansionX, 
                     player.y - expansionY, 
-                    player.width + expansionX * 2, 
-                    player.height + expansionY * 2)
+                    player.width * 1.5, 
+                    player.height * 1.5)
                 
                 -- Draw the original player rectangle
-                love.graphics.setColor(0, 1, 0, 0.5)  -- Green for the player model
+                love.graphics.setColor(Constants.COLORS.GREEN_TRANSPARENT)  -- Green for the player model
                 love.graphics.rectangle("line", player.x, player.y, player.width, player.height)
                 
                 -- Draw the collection hitbox
-                love.graphics.setColor(1, 0, 0, 0.5)  -- Red for the collection hitbox
+                love.graphics.setColor(Constants.COLORS.RED_TRANSPARENT)  -- Red for the collection hitbox
                 love.graphics.rectangle("line", 
                     player.x - expansionX, 
                     player.y - expansionY, 
-                    player.width + expansionX * 2, 
-                    player.height + expansionY * 2)
+                    player.width * 1.5, 
+                    player.height * 1.5)
                 
                 -- Draw kick hitbox if player is kicking
                 if player.isKicking then
-                    love.graphics.setColor(1, 0.5, 0, 0.5)  -- Orange for kick hitbox
+                    love.graphics.setColor(Constants.COLORS.ORANGE_TRANSPARENT)  -- Orange for kick hitbox
                     local kickX
                     if player.velocity.x > 0 then
-                        kickX = player.x + player.width + 100
+                        kickX = player.x + player.width + Constants.KICK_HITBOX_OFFSET_X
                     else
-                        kickX = player.x - 100 - 50
+                        kickX = player.x - Constants.KICK_HITBOX_OFFSET_X - Constants.KICK_HITBOX_WIDTH
                     end
-                    local kickY = player.y + player.height/2 - 50
-                    love.graphics.rectangle("fill", kickX, kickY, 50, 100)
-                    love.graphics.setColor(1, 0.5, 0, 1)  -- Solid orange for outline
-                    love.graphics.rectangle("line", kickX, kickY, 50, 100)
+                    local kickY = player.y + player.height/2 - Constants.KICK_HITBOX_OFFSET_Y
+                    love.graphics.rectangle("fill", kickX, kickY, Constants.KICK_HITBOX_WIDTH, Constants.KICK_HITBOX_HEIGHT)
+                    love.graphics.setColor(Constants.COLORS.ORANGE)  -- Solid orange for outline
+                    love.graphics.rectangle("line", kickX, kickY, Constants.KICK_HITBOX_WIDTH, Constants.KICK_HITBOX_HEIGHT)
                 end
             end
         end
@@ -489,7 +496,7 @@ function Game:drawTitle()
         titleWidth = self.titleFont:getWidth(titleText)
     end
     
-    love.graphics.print(titleText, 600 - titleWidth/2, 100)
+    love.graphics.print(titleText, Constants.SCREEN_WIDTH/2 - titleWidth/2, 100)
     
     -- Draw subtitle
     self:safeSetFont(self.subtitleFont)
@@ -498,7 +505,7 @@ function Game:drawTitle()
     if self.subtitleFont then
         subtitleWidth = self.subtitleFont:getWidth(subtitleText)
     end
-    love.graphics.print(subtitleText, 600 - subtitleWidth/2, 160)
+    love.graphics.print(subtitleText, Constants.SCREEN_WIDTH/2 - subtitleWidth/2, 160)
     
     -- Draw bot count selection
     self:safeSetFont(self.instructionFont)
@@ -507,7 +514,7 @@ function Game:drawTitle()
     if self.instructionFont then
         botWidth = self.instructionFont:getWidth(botText)
     end
-    love.graphics.print(botText, 600 - botWidth/2, 220)
+    love.graphics.print(botText, Constants.SCREEN_WIDTH/2 - botWidth/2, 220)
     
     -- Draw character selection instructions
     local charSelectText = "Use D-pad to select, X to toggle characters"
@@ -515,7 +522,7 @@ function Game:drawTitle()
     if self.instructionFont then
         charSelectWidth = self.instructionFont:getWidth(charSelectText)
     end
-    love.graphics.print(charSelectText, 600 - charSelectWidth/2, 300)
+    love.graphics.print(charSelectText, Constants.SCREEN_WIDTH/2 - charSelectWidth/2, 300)
     
     -- Draw instructions
     local instructionText = "Press START to begin"
@@ -523,7 +530,7 @@ function Game:drawTitle()
     if self.instructionFont then
         instructionWidth = self.instructionFont:getWidth(instructionText)
     end
-    love.graphics.print(instructionText, 600 - instructionWidth/2, 340)
+    love.graphics.print(instructionText, Constants.SCREEN_WIDTH/2 - instructionWidth/2, 340)
     
     -- Draw character selection grid (moved below other text)
     self:drawCharacterGrid()
@@ -539,7 +546,7 @@ function Game:drawGame()
     if self.font then
         currentCharWidth = self.font:getWidth(currentCharText)
     end
-    love.graphics.print(currentCharText, 600 - currentCharWidth/2, 50)
+    love.graphics.print(currentCharText, Constants.SCREEN_WIDTH/2 - currentCharWidth/2, 50)
     
     -- Draw game timer
     local timeLeft = math.max(0, self.gameDuration - self.gameTimer)
@@ -548,7 +555,7 @@ function Game:drawGame()
     if self.font then
         timerWidth = self.font:getWidth(timerText)
     end
-    love.graphics.print(timerText, 600 - timerWidth/2, 100)
+    love.graphics.print(timerText, Constants.SCREEN_WIDTH/2 - timerWidth/2, 100)
     
     -- Draw boxes
     for _, box in ipairs(self.boxes) do
@@ -571,7 +578,7 @@ function Game:drawGameOver()
     if self.titleFont then
         gameOverWidth = self.titleFont:getWidth(gameOverText)
     end
-    love.graphics.print(gameOverText, 600 - gameOverWidth/2, 200)
+    love.graphics.print(gameOverText, Constants.SCREEN_WIDTH/2 - gameOverWidth/2, 200)
     
     -- Draw winner
     if self.winner then
@@ -582,7 +589,7 @@ function Game:drawGameOver()
         if self.subtitleFont then
             winnerWidth = self.subtitleFont:getWidth(winnerText)
         end
-        love.graphics.print(winnerText, 600 - winnerWidth/2, 280)
+        love.graphics.print(winnerText, Constants.SCREEN_WIDTH/2 - winnerWidth/2, 280)
     else
         self:safeSetFont(self.subtitleFont)
         local tieText = "It's a tie!"
@@ -590,7 +597,7 @@ function Game:drawGameOver()
         if self.subtitleFont then
             tieWidth = self.subtitleFont:getWidth(tieText)
         end
-        love.graphics.print(tieText, 600 - tieWidth/2, 280)
+        love.graphics.print(tieText, Constants.SCREEN_WIDTH/2 - tieWidth/2, 280)
     end
     
     -- Draw instructions
@@ -600,7 +607,7 @@ function Game:drawGameOver()
     if self.instructionFont then
         instructionWidth = self.instructionFont:getWidth(instructionText)
     end
-    love.graphics.print(instructionText, 600 - instructionWidth/2, 400)
+    love.graphics.print(instructionText, Constants.SCREEN_WIDTH/2 - instructionWidth/2, 400)
     
     -- Draw final scores
     self:safeSetFont(self.smallFont)
@@ -609,7 +616,7 @@ function Game:drawGameOver()
     if self.smallFont then
         scoresTitleWidth = self.smallFont:getWidth(scoresTitle)
     end
-    love.graphics.print(scoresTitle, 600 - scoresTitleWidth/2, 450)
+    love.graphics.print(scoresTitle, Constants.SCREEN_WIDTH/2 - scoresTitleWidth/2, 450)
     
     local startY = 480
     for i, controller in ipairs(self.controllers) do
@@ -618,7 +625,7 @@ function Game:drawGameOver()
         if self.smallFont then
             scoreWidth = self.smallFont:getWidth(scoreText)
         end
-        love.graphics.print(scoreText, 600 - scoreWidth/2, startY + (i-1) * 30)
+        love.graphics.print(scoreText, Constants.SCREEN_WIDTH/2 - scoreWidth/2, startY + (i-1) * 30)
     end
 end
 
@@ -687,14 +694,14 @@ function Game:spawnBox()
     
     -- Create a new box with the character
     local box = {
-        x = love.math.random(100, 1100),  -- Random x position
-        y = -50,  -- Start above the screen
-        width = 48,  -- Match player width
-        height = 48,  -- Match player height
-        speed = love.math.random(100, 200),  -- Random fall speed
+        x = love.math.random(Constants.BOX_SPAWN_MIN_X, Constants.BOX_SPAWN_MAX_X),  -- Random x position
+        y = Constants.BOX_SPAWN_Y,  -- Start above the screen
+        width = Constants.BOX_WIDTH,  -- Match player width
+        height = Constants.BOX_HEIGHT,  -- Match player height
+        speed = love.math.random(Constants.BOX_MIN_SPEED, Constants.BOX_MAX_SPEED),  -- Random fall speed
         meaning = randomCharacter.meaning,
         character = randomCharacter.character,
-        useCircle = config.rendering.useCirclesForCharacters  -- Store whether to use circle
+        useCircle = love._console == "Switch" and config.rendering.useCirclesForCharacters or false  -- Store whether to use circle
     }
     
     -- Only load image if not using circles
@@ -726,8 +733,8 @@ end
 
 function Game:checkCharacterCollection(player, character)
     -- Calculate the expanded hitbox (3x larger than the player model)
-    local expansionX = player.width * 1.5  -- 150% expansion on each side (3x total width)
-    local expansionY = player.height * 1.5  -- 150% expansion on each side (3x total height)
+    local expansionX = player.width * Constants.HITBOX_EXPANSION_X  -- 150% expansion on each side (3x total width)
+    local expansionY = player.height * Constants.HITBOX_EXPANSION_Y  -- 150% expansion on each side (3x total height)
     
     -- Check if character is within or touching the expanded player's rectangle
     local playerLeft = player.x - expansionX
@@ -751,10 +758,10 @@ function Game:checkCollisions()
     -- Check player-box collisions
     for _, controller in ipairs(self.controllers) do
         local player = controller.player
-        local playerLeft = player.x - player.width * 1.5
-        local playerRight = player.x + player.width * 2.5
-        local playerTop = player.y - player.height * 1.5
-        local playerBottom = player.y + player.height * 2.5
+        local playerLeft = player.x - player.width * Constants.HITBOX_EXPANSION_X
+        local playerRight = player.x + player.width * (1 + Constants.HITBOX_EXPANSION_X)
+        local playerTop = player.y - player.height * Constants.HITBOX_EXPANSION_Y
+        local playerBottom = player.y + player.height * (1 + Constants.HITBOX_EXPANSION_Y)
         
         for i = #self.boxes, 1, -1 do
             local box = self.boxes[i]
@@ -771,7 +778,7 @@ function Game:checkCollisions()
                 -- Check if the meaning matches the current character
                 if box.meaning == self.currentCharacter.meaning then
                     -- Correct match! Add points
-                    controller.player.score = controller.player.score + 10
+                    controller.player.score = controller.player.score + Constants.CORRECT_MATCH_SCORE
                     -- Show a victory animation
                     controller.player:setAnimation(ANIMATION_STATES.VICTORY)
                     logger:info("Player %s collected correct character: %s", 
@@ -785,9 +792,9 @@ function Game:checkCollisions()
                             controller.player.name, box.meaning)
                     else
                         -- If no characters in stack, subtract points
-                        controller.player.score = math.max(0, controller.player.score - 5)
-                        logger:info("Player %s collected wrong character: %s, lost 5 points", 
-                            controller.player.name, box.meaning)
+                        controller.player.score = math.max(0, controller.player.score - Constants.WRONG_MATCH_PENALTY)
+                        logger:info("Player %s collected wrong character: %s, lost %d points", 
+                            controller.player.name, box.meaning, Constants.WRONG_MATCH_PENALTY)
                     end
                 end
                 
@@ -804,24 +811,24 @@ function Game:checkCollisions()
             -- Calculate kick hitbox position based on player1's direction
             local kickX
             if player1.velocity.x > 0 then
-                kickX = player1.x + player1.width + 100
+                kickX = player1.x + player1.width + Constants.KICK_HITBOX_OFFSET_X
             else
-                kickX = player1.x - 100 - 50
+                kickX = player1.x - Constants.KICK_HITBOX_OFFSET_X - Constants.KICK_HITBOX_WIDTH
             end
-            local kickY = player1.y + player1.height/2 - 50
+            local kickY = player1.y + player1.height/2 - Constants.KICK_HITBOX_OFFSET_Y
             
             -- Define kick hitbox boundaries
             local kickLeft = kickX
-            local kickRight = kickX + 50
+            local kickRight = kickX + Constants.KICK_HITBOX_WIDTH
             local kickTop = kickY
-            local kickBottom = kickY + 100
+            local kickBottom = kickY + Constants.KICK_HITBOX_HEIGHT
             
             -- Check collision with all other players
             for j, controller2 in ipairs(self.controllers) do
                 if i ~= j then  -- Don't check collision with self
                     local player2 = controller2.player
                     -- Only check if player2 is not already knocked back and not invulnerable
-                    if not player2.isKnockback and player2.invulnerableTimer <= 0 then
+                    if not player2.isKnockback and not player2.isInvulnerable then
                         -- Check if player2 overlaps with kick hitbox
                         local player2Left = player2.x
                         local player2Right = player2.x + player2.width
@@ -834,8 +841,8 @@ function Game:checkCollisions()
                                kickTop > player2Bottom) then
                             -- Kick hit! Apply knockback
                             local knockbackVel = {
-                                x = player1.facingRight and 500 or -500,  -- Push in kicker's facing direction
-                                y = -10  -- Minimal upward knockback
+                                x = player1.facingRight and -Constants.KNOCKBACK_FORCE_X or Constants.KNOCKBACK_FORCE_X,  -- Push in opposite direction of kicker
+                                y = -Constants.KNOCKBACK_FORCE_Y  -- Minimal upward knockback
                             }
                             player2:takeKnockback(knockbackVel)
                             logger:info("Player %s kicked Player %s", player1.name, player2.name)
@@ -849,16 +856,16 @@ end
 
 function Game:checkCollision(a, b)
     -- Check if either object is a player and the other is a character
-    local isPlayerCharacterCollision = (a.width == 415 and a.height == 532) or (b.width == 415 and b.height == 532)
+    local isPlayerCharacterCollision = (a.width == Constants.PLAYER_WIDTH and a.height == Constants.PLAYER_HEIGHT) or (b.width == Constants.PLAYER_WIDTH and b.height == Constants.PLAYER_HEIGHT)
     
     if isPlayerCharacterCollision then
         -- For player-character collisions, use rectangle collision with expanded hitbox
-        local player = (a.width == 415 and a.height == 532) and a or b
-        local character = (a.width == 415 and a.height == 532) and b or a
+        local player = (a.width == Constants.PLAYER_WIDTH and a.height == Constants.PLAYER_HEIGHT) and a or b
+        local character = (a.width == Constants.PLAYER_WIDTH and a.height == Constants.PLAYER_HEIGHT) and b or a
         
         -- Calculate the expanded hitbox (3x larger than the player model)
-        local expansionX = player.width * 1.5  -- 150% expansion on each side (3x total width)
-        local expansionY = player.height * 1.5  -- 150% expansion on each side (3x total height)
+        local expansionX = player.width * Constants.HITBOX_EXPANSION_X  -- 150% expansion on each side (3x total width)
+        local expansionY = player.height * Constants.HITBOX_EXPANSION_Y  -- 150% expansion on each side (3x total height)
         
         -- Check if character is within or touching the expanded player's rectangle
         local playerLeft = player.x - expansionX
@@ -882,8 +889,8 @@ function Game:checkCollision(a, b)
         local bRadius = b.width and b.width/3 or 10
         
         -- Calculate center points
-        local aCenterX = a.x + (a.width or 415)/2
-        local aCenterY = a.y + (a.height or 532)/2
+        local aCenterX = a.x + (a.width or Constants.PLAYER_WIDTH)/2
+        local aCenterY = a.y + (a.height or Constants.PLAYER_HEIGHT)/2
         local bCenterX = b.x + (b.width or 20)/2
         local bCenterY = b.y + (b.height or 20)/2
         
@@ -899,15 +906,15 @@ end
 
 function Game:drawCharacterGrid()
     -- Grid settings for 1920x1080 resolution
-    local gridX = 600  -- Center of the grid
-    local gridY = 600  -- Moved down to be below other text
-    local cellSize = 60  -- Size of each cell
-    local cellsPerRow = 8  -- 8x8 grid
+    local gridX = Constants.GRID_START_X  -- Center of the grid
+    local gridY = Constants.GRID_START_Y  -- Moved down to be below other text
+    local cellSize = Constants.GRID_CELL_SIZE  -- Size of each cell
+    local cellsPerRow = Constants.GRID_CELLS_PER_ROW  -- 8x8 grid
     local startX = gridX - (cellSize * cellsPerRow) / 2
     local startY = gridY - (cellSize * cellsPerRow) / 2
     
     -- Draw grid title
-    love.graphics.setColor(1, 1, 1)
+    love.graphics.setColor(Constants.COLORS.WHITE)
     self:safeSetFont(self.font)
     local gridTitle = "Character Selection"
     local gridTitleWidth = 300  -- Fixed width for Switch
@@ -927,15 +934,15 @@ function Game:drawCharacterGrid()
         -- Draw cell background
         if i == self.selectedCharacterIndex then
             -- Selected cell
-            love.graphics.setColor(1, 0.8, 0)  -- Yellow highlight
+            love.graphics.setColor(Constants.COLORS.YELLOW)  -- Yellow highlight
         else
             -- Normal cell
-            love.graphics.setColor(0.2, 0.2, 0.2, 0.8)  -- Dark gray
+            love.graphics.setColor(Constants.COLORS.DARK_GRAY_TRANSPARENT)  -- Dark gray
         end
         love.graphics.rectangle("fill", x, y, cellSize, cellSize)
         
         -- Draw cell border
-        love.graphics.setColor(1, 1, 1)  -- White
+        love.graphics.setColor(Constants.COLORS.WHITE)  -- White
         love.graphics.rectangle("line", x, y, cellSize, cellSize)
         
         -- Draw character
@@ -951,7 +958,7 @@ function Game:drawCharacterGrid()
         love.graphics.print(charText, x + (cellSize - charWidth)/2, y + (cellSize - charHeight)/2)
         
         -- Draw meaning
-        love.graphics.setColor(1, 1, 1)  -- White
+        love.graphics.setColor(Constants.COLORS.WHITE)  -- White
         self:safeSetFont(self.smallFont)
         local meaningText = char.meaning
         local meaningWidth = 30  -- Fixed width for Switch
@@ -962,9 +969,9 @@ function Game:drawCharacterGrid()
         
         -- Draw enabled/disabled indicator
         if self.characterEnabled[i] then
-            love.graphics.setColor(0, 1, 0)  -- Green for enabled
+            love.graphics.setColor(Constants.COLORS.GREEN)  -- Green for enabled
         else
-            love.graphics.setColor(1, 0, 0)  -- Red for disabled
+            love.graphics.setColor(Constants.COLORS.RED)  -- Red for disabled
         end
         love.graphics.circle("fill", x + 5, y + 5, 5)
     end
