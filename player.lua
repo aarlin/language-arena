@@ -10,7 +10,7 @@ local ANIMATION_STATES = {
     JUMP = "jump",
     CROUCH = "crouch",
     KO = "ko",
-    VICTORY = "victory",
+    DANCE = "dance",
     KICK = "kick"  -- New kick animation state
 }
 
@@ -235,18 +235,18 @@ function Player:loadAnimations()
         end
     end
     
-    local victoryFrames = {1, 3, 5, 7, 9, 11}
-    for _, frameNum in ipairs(victoryFrames) do
+    local danceFrames = {1, 3, 5, 7, 9, 11}
+    for _, frameNum in ipairs(danceFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/victory/victory" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/raccoon/dance/dance" .. frameNumber .. ".png")
         end)
         
         if success then
-            table.insert(self.animations[ANIMATION_STATES.VICTORY].frames, image)
-            logger:debug("Loaded victory animation frame: victory%s.png", frameNumber)
+            table.insert(self.animations[ANIMATION_STATES.DANCE].frames, image)
+            logger:debug("Loaded dance animation frame: dance%s.png", frameNumber)
         else
-            logger:error("Failed to load victory animation frame: victory%s.png - %s", frameNumber, image)
+            logger:error("Failed to load dance animation frame: dance%s.png - %s", frameNumber, image)
         end
     end
 end

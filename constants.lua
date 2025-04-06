@@ -22,7 +22,7 @@ Constants.PLAYER_IMMOBILITY_DURATION = 1  -- Seconds of immobility after being h
 Constants.PLAYER_ANIMATION_SPEED = 0.1  -- Animation frame duration
 Constants.PLAYER_KICK_DURATION = 0.5  -- Duration of kick animation
 Constants.PLAYER_KO_DURATION = 1  -- Duration of KO animation
-Constants.PLAYER_VICTORY_DURATION = 1  -- Duration of victory animation
+Constants.PLAYER_DANCE_DURATION = 3  -- Duration of dance animation
 
 -- Hitbox settings
 Constants.HITBOX_WIDTH = 100  -- Width of hitbox
