@@ -129,5 +129,8 @@ end
 
 function love.quit()
     logger:info("Game shutting down")
+    if game then
+        game:cleanup()
+    end
     logger:close()  -- Close the log file
 end 

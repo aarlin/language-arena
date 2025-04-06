@@ -29,10 +29,60 @@ function Game.new()
     self.characterChangeTime = love.math.random(Constants.CHARACTER_CHANGE_MIN_TIME, Constants.CHARACTER_CHANGE_MAX_TIME)
     self.spawnTimer = 0
     self.spawnInterval = Constants.SPAWN_INTERVAL
-    self.background = love.graphics.newImage("assets/background/forest.jpg")
+    self.titleBackground = love.graphics.newImage("assets/background/mainmenu.jpg")
+    self.gameBackground = love.graphics.newImage("assets/background/forest.jpg")
     
     -- Check if running on Nintendo Switch
     self.isSwitch = love._console == "Switch"
+    
+    -- Load background music with platform-specific format
+    if self.isSwitch then
+        -- On Switch, use OGG format for better performance
+        local success, titleMusic = pcall(function()
+            return love.audio.newSource("assets/bgm/missing_you.mp3", "static")
+        end)
+        
+        local success2, gameMusic = pcall(function()
+            return love.audio.newSource("assets/bgm/suika.mp3", "static")
+        end)
+        
+        if success and success2 then
+            self.titleMusic = titleMusic
+            self.gameMusic = gameMusic
+            self.titleMusic:setLooping(true)
+            self.gameMusic:setLooping(true)
+            self.currentMusic = nil
+            logger:info("Music loaded successfully (OGG format on Switch)")
+        else
+            self.titleMusic = nil
+            self.gameMusic = nil
+            self.currentMusic = nil
+            logger:warning("Failed to load OGG music files on Switch")
+        end
+    else
+        -- On PC, use MP3 format
+        local success, titleMusic = pcall(function()
+            return love.audio.newSource("assets/bgm/missing_you.mp3", "static")
+        end)
+        
+        local success2, gameMusic = pcall(function()
+            return love.audio.newSource("assets/bgm/suika.mp3", "static")
+        end)
+        
+        if success and success2 then
+            self.titleMusic = titleMusic
+            self.gameMusic = gameMusic
+            self.titleMusic:setLooping(true)
+            self.gameMusic:setLooping(true)
+            self.currentMusic = nil
+            logger:info("Music loaded successfully (MP3 format on PC)")
+        else
+            self.titleMusic = nil
+            self.gameMusic = nil
+            self.currentMusic = nil
+            logger:warning("Failed to load MP3 music files on PC")
+        end
+    end
     
     -- Use system fonts for all platforms
     logger:info("Using system fonts")
@@ -178,171 +228,198 @@ function Game:setupControllers()
 end
 
 function Game:update(dt)
-    if self.gameState == "title" then
-        -- Update character selection cooldown
-        if self.characterSelectionCooldown > 0 then
-            self.characterSelectionCooldown = self.characterSelectionCooldown - dt
+    -- Wrap the entire update function in error handling
+    local success, errorMsg = pcall(function()
+        -- Only play music in title screen if music is available (PC only)
+        if not self.isSwitch and self.titleMusic then
+            if self.gameState == "title" and self.currentMusic ~= self.titleMusic then
+                -- Stop any playing music
+                if self.currentMusic then
+                    self.currentMusic:stop()
+                end
+                -- Start title music
+                love.audio.play(self.titleMusic)
+                self.currentMusic = self.titleMusic
+                logger:info("Playing title music")
+            elseif self.gameState ~= "title" and self.currentMusic then
+                -- Stop music when leaving title screen
+                self.currentMusic:stop()
+                self.currentMusic = nil
+                logger:info("Stopped music when leaving title screen")
+            end
         end
         
-        -- Check for start button press
-        for _, controller in ipairs(self.controllers) do
-            -- Only process input for non-bot controllers
-            if not controller.isBot then
-                if controller.joystick:isGamepadDown(controller.player.controls.start) then
-                    self.gameState = "game"
-                    self.gameTimer = 0
-                    self.botCount = self.selectedBotCount  -- Set the actual bot count when starting the game
+        -- Update game state
+        if self.gameState == "title" then
+            -- Update character selection cooldown
+            if self.characterSelectionCooldown > 0 then
+                self.characterSelectionCooldown = self.characterSelectionCooldown - dt
+            end
+            
+            -- Check for start button press
+            for _, controller in ipairs(self.controllers) do
+                -- Only process input for non-bot controllers
+                if not controller.isBot then
+                    if controller.joystick:isGamepadDown(controller.player.controls.start) then
+                        self.gameState = "game"
+                        self.gameTimer = 0
+                        self.botCount = self.selectedBotCount  -- Set the actual bot count when starting the game
+                        
+                        -- Setup controllers again to add bots
+                        self:setupControllers()
+                        
+                        logger:info("Game started with %d bots", self.botCount)
+                        break
+                    end
+                end
+            end
+            
+            -- Check for bot count selection
+            for _, controller in ipairs(self.controllers) do
+                -- Only process input for non-bot controllers
+                if not controller.isBot then
+                    -- Use A button to increase bot count
+                    if controller.joystick:isGamepadDown("a") then
+                        self.selectedBotCount = math.min(3, self.selectedBotCount + 1)
+                        logger:info("Bot count increased to %d", self.selectedBotCount)
+                        break
+                    end
+                    -- Use B button to decrease bot count
+                    if controller.joystick:isGamepadDown("b") then
+                        self.selectedBotCount = math.max(0, self.selectedBotCount - 1)
+                        logger:info("Bot count decreased to %d", self.selectedBotCount)
+                        break
+                    end
                     
-                    -- Setup controllers again to add bots
-                    self:setupControllers()
+                    -- Character selection with D-pad (only if cooldown is 0)
+                    if self.characterSelectionCooldown <= 0 then
+                        if controller.joystick:isGamepadDown("dpup") then
+                            self.selectedCharacterIndex = self.selectedCharacterIndex - Constants.GRID_CELLS_PER_ROW
+                            if self.selectedCharacterIndex < 1 then
+                                self.selectedCharacterIndex = #characters
+                            end
+                            self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
+                            logger:debug("Selected character: %d", self.selectedCharacterIndex)
+                            break
+                        end
+                        if controller.joystick:isGamepadDown("dpdown") then
+                            self.selectedCharacterIndex = self.selectedCharacterIndex + Constants.GRID_CELLS_PER_ROW
+                            if self.selectedCharacterIndex > #characters then
+                                self.selectedCharacterIndex = 1
+                            end
+                            self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
+                            logger:debug("Selected character: %d", self.selectedCharacterIndex)
+                            break
+                        end
+                        if controller.joystick:isGamepadDown("dpleft") then
+                            self.selectedCharacterIndex = self.selectedCharacterIndex - 1
+                            if self.selectedCharacterIndex < 1 then
+                                self.selectedCharacterIndex = #characters
+                            end
+                            self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
+                            logger:debug("Selected character: %d", self.selectedCharacterIndex)
+                            break
+                        end
+                        if controller.joystick:isGamepadDown("dpright") then
+                            self.selectedCharacterIndex = self.selectedCharacterIndex + 1
+                            if self.selectedCharacterIndex > #characters then
+                                self.selectedCharacterIndex = 1
+                            end
+                            self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
+                            logger:debug("Selected character: %d", self.selectedCharacterIndex)
+                            break
+                        end
+                    end
                     
-                    logger:info("Game started with %d bots", self.botCount)
-                    break
+                    -- Toggle character with X button
+                    if controller.joystick:isGamepadDown("x") then
+                        self.characterEnabled[self.selectedCharacterIndex] = not self.characterEnabled[self.selectedCharacterIndex]
+                        logger:info("Character %d (%s) %s", 
+                            self.selectedCharacterIndex, 
+                            characters[self.selectedCharacterIndex].character,
+                            self.characterEnabled[self.selectedCharacterIndex] and "enabled" or "disabled")
+                        break
+                    end
                 end
+            end
+            return
+        elseif self.gameState == "gameover" then
+            -- Check for back button press to return to title
+            for _, controller in ipairs(self.controllers) do
+                -- Only process input for non-bot controllers
+                if not controller.isBot then
+                    if controller.joystick:isGamepadDown(controller.player.controls.back) then
+                        self.gameState = "title"
+                        -- Reset game state
+                        self.boxes = {}
+                        self:setupControllers()
+                        logger:info("Returned to title screen")
+                        break
+                    end
+                end
+            end
+            return
+        end
+        
+        -- Update game timer
+        self.gameTimer = self.gameTimer + dt
+        if self.gameTimer >= self.gameDuration then
+            self:endGame()
+            return
+        end
+        
+        -- Update character rotation timer
+        self.characterTimer = self.characterTimer + dt
+        if self.characterTimer >= self.characterChangeTime then
+            -- Change to a random character (different from current)
+            local newIndex
+            repeat
+                newIndex = love.math.random(1, #characters)
+            until characters[newIndex].character ~= self.currentCharacter.character
+            
+            logger:info("Character changed from %s to %s", 
+                self.currentCharacter.character, characters[newIndex].character)
+            
+            self.currentCharacter = characters[newIndex]
+            self.characterTimer = 0
+            self.characterChangeTime = love.math.random(Constants.CHARACTER_CHANGE_MIN_TIME, Constants.CHARACTER_CHANGE_MAX_TIME)
+        end
+        
+        -- Update spawn timer
+        self.spawnTimer = self.spawnTimer + dt
+        if self.spawnTimer >= self.spawnInterval then
+            self:spawnBox()
+            self.spawnTimer = 0
+        end
+        
+        -- Update boxes
+        for i = #self.boxes, 1, -1 do
+            local box = self.boxes[i]
+            box.y = box.y + box.speed * dt
+            
+            -- Remove if off screen
+            if box.y > Constants.SCREEN_HEIGHT then
+                table.remove(self.boxes, i)
+                logger:debug("Box removed (off screen)")
             end
         end
         
-        -- Check for bot count selection
+        -- Update players
         for _, controller in ipairs(self.controllers) do
-            -- Only process input for non-bot controllers
-            if not controller.isBot then
-                -- Use A button to increase bot count
-                if controller.joystick:isGamepadDown("a") then
-                    self.selectedBotCount = math.min(3, self.selectedBotCount + 1)
-                    logger:info("Bot count increased to %d", self.selectedBotCount)
-                    break
-                end
-                -- Use B button to decrease bot count
-                if controller.joystick:isGamepadDown("b") then
-                    self.selectedBotCount = math.max(0, self.selectedBotCount - 1)
-                    logger:info("Bot count decreased to %d", self.selectedBotCount)
-                    break
-                end
-                
-                -- Character selection with D-pad (only if cooldown is 0)
-                if self.characterSelectionCooldown <= 0 then
-                    if controller.joystick:isGamepadDown("dpup") then
-                        self.selectedCharacterIndex = self.selectedCharacterIndex - Constants.GRID_CELLS_PER_ROW
-                        if self.selectedCharacterIndex < 1 then
-                            self.selectedCharacterIndex = #characters
-                        end
-                        self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
-                        logger:debug("Selected character: %d", self.selectedCharacterIndex)
-                        break
-                    end
-                    if controller.joystick:isGamepadDown("dpdown") then
-                        self.selectedCharacterIndex = self.selectedCharacterIndex + Constants.GRID_CELLS_PER_ROW
-                        if self.selectedCharacterIndex > #characters then
-                            self.selectedCharacterIndex = 1
-                        end
-                        self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
-                        logger:debug("Selected character: %d", self.selectedCharacterIndex)
-                        break
-                    end
-                    if controller.joystick:isGamepadDown("dpleft") then
-                        self.selectedCharacterIndex = self.selectedCharacterIndex - 1
-                        if self.selectedCharacterIndex < 1 then
-                            self.selectedCharacterIndex = #characters
-                        end
-                        self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
-                        logger:debug("Selected character: %d", self.selectedCharacterIndex)
-                        break
-                    end
-                    if controller.joystick:isGamepadDown("dpright") then
-                        self.selectedCharacterIndex = self.selectedCharacterIndex + 1
-                        if self.selectedCharacterIndex > #characters then
-                            self.selectedCharacterIndex = 1
-                        end
-                        self.characterSelectionCooldown = 0.2  -- Set cooldown to 0.2 seconds
-                        logger:debug("Selected character: %d", self.selectedCharacterIndex)
-                        break
-                    end
-                end
-                
-                -- Toggle character with X button
-                if controller.joystick:isGamepadDown("x") then
-                    self.characterEnabled[self.selectedCharacterIndex] = not self.characterEnabled[self.selectedCharacterIndex]
-                    logger:info("Character %d (%s) %s", 
-                        self.selectedCharacterIndex, 
-                        characters[self.selectedCharacterIndex].character,
-                        self.characterEnabled[self.selectedCharacterIndex] and "enabled" or "disabled")
-                    break
-                end
-            end
+            controller.player:update(dt)
         end
-        return
-    elseif self.gameState == "gameover" then
-        -- Check for back button press to return to title
-        for _, controller in ipairs(self.controllers) do
-            -- Only process input for non-bot controllers
-            if not controller.isBot then
-                if controller.joystick:isGamepadDown(controller.player.controls.back) then
-                    self.gameState = "title"
-                    -- Reset game state
-                    self.boxes = {}
-                    self:setupControllers()
-                    logger:info("Returned to title screen")
-                    break
-                end
-            end
+        
+        -- Check collisions
+        self:checkCollisions()
+        
+        -- Log game state periodically (every 5 seconds)
+        if math.floor(self.gameTimer * 2) % 10 == 0 then
+            logger:logGameState(self)
         end
-        return
-    end
+    end)
     
-    -- Update game timer
-    self.gameTimer = self.gameTimer + dt
-    if self.gameTimer >= self.gameDuration then
-        self:endGame()
-        return
-    end
-    
-    -- Update character rotation timer
-    self.characterTimer = self.characterTimer + dt
-    if self.characterTimer >= self.characterChangeTime then
-        -- Change to a random character (different from current)
-        local newIndex
-        repeat
-            newIndex = love.math.random(1, #characters)
-        until characters[newIndex].character ~= self.currentCharacter.character
-        
-        logger:info("Character changed from %s to %s", 
-            self.currentCharacter.character, characters[newIndex].character)
-        
-        self.currentCharacter = characters[newIndex]
-        self.characterTimer = 0
-        self.characterChangeTime = love.math.random(Constants.CHARACTER_CHANGE_MIN_TIME, Constants.CHARACTER_CHANGE_MAX_TIME)
-    end
-    
-    -- Update spawn timer
-    self.spawnTimer = self.spawnTimer + dt
-    if self.spawnTimer >= self.spawnInterval then
-        self:spawnBox()
-        self.spawnTimer = 0
-    end
-    
-    -- Update boxes
-    for i = #self.boxes, 1, -1 do
-        local box = self.boxes[i]
-        box.y = box.y + box.speed * dt
-        
-        -- Remove if off screen
-        if box.y > Constants.SCREEN_HEIGHT then
-            table.remove(self.boxes, i)
-            logger:debug("Box removed (off screen)")
-        end
-    end
-    
-    -- Update players
-    for _, controller in ipairs(self.controllers) do
-        controller.player:update(dt)
-    end
-    
-    -- Check collisions
-    self:checkCollisions()
-    
-    -- Log game state periodically (every 5 seconds)
-    if math.floor(self.gameTimer * 2) % 10 == 0 then
-        logger:logGameState(self)
+    if not success then
+        logger:error("Error in update: %s", errorMsg)
     end
 end
 
@@ -385,9 +462,13 @@ function Game:gamepadreleased(joystick, button)
 end
 
 function Game:draw()
-    -- Draw background
+    -- Draw background based on game state
     love.graphics.setColor(Constants.COLORS.WHITE)
-    love.graphics.draw(self.background, 0, 0)
+    if self.gameState == "title" then
+        love.graphics.draw(self.titleBackground, 0, 0)
+    else
+        love.graphics.draw(self.gameBackground, 0, 0)
+    end
     
     -- Draw based on game state
     if self.gameState == "title" then
@@ -975,6 +1056,54 @@ function Game:drawCharacterGrid()
         end
         love.graphics.circle("fill", x + 5, y + 5, 5)
     end
+end
+
+-- Add a function to stop all music
+function Game:stopMusic()
+    if self.currentMusic then
+        self.currentMusic:stop()
+        self.currentMusic = nil
+    end
+    logger:info("Stopped all background music")
+end
+
+-- Add a function to clean up resources
+function Game:cleanup()
+    self:stopMusic()
+    -- Release audio sources only if they exist (PC only)
+    if not self.isSwitch then
+        if self.titleMusic then
+            self.titleMusic:release()
+        end
+        if self.gameMusic then
+            self.gameMusic:release()
+        end
+    end
+    logger:info("Cleaned up game resources")
+end
+
+function Game:startGame()
+    -- Stop any playing music
+    if self.currentMusic then
+        self.currentMusic:stop()
+        self.currentMusic = nil
+        logger:info("Stopped music when starting game")
+    end
+    
+    self.gameState = "game"
+    self.gameTimer = 0
+    self.winner = nil
+    
+    -- Reset player scores
+    for _, controller in ipairs(self.controllers) do
+        controller.player.score = 0
+        controller.player.collectedApples = {}
+    end
+    
+    -- Clear boxes
+    self.boxes = {}
+    
+    logger:info("Game started with %d players", #self.controllers)
 end
 
 return Game 

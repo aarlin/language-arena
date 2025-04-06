@@ -3,11 +3,11 @@
 local config = {
     -- Debug settings
     debug = {
-        enabled = true,  -- Master switch for debug mode
-        showHitboxes = true,  -- Show collision hitboxes
+        enabled = false,  -- Master switch for debug mode
+        showHitboxes = false,  -- Show collision hitboxes
         showPlayerInfo = true,  -- Show player position, velocity, etc.
         showFPS = true,  -- Show FPS counter
-        showCollisionPoints = true,  -- Show points where collisions occur
+        showCollisionPoints = false,  -- Show points where collisions occur
     },
 
     -- Rendering settings

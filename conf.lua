@@ -4,8 +4,8 @@ function love.conf(t)
     t.console = false
     
     t.window.title = "Language Arena"
-    t.window.width = 1280
-    t.window.height = 720
+    t.window.width = 1920
+    t.window.height = 1080
     t.window.resizable = true
     
     t.modules.joystick = true

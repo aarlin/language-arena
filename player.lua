@@ -123,8 +123,8 @@ function Player:loadAnimations()
         self.animations[state] = {frames = {}}
     end
     
-    -- Load idle animation (odd-numbered frames)
-    local idleFrames = {1, 3, 5, 7, 9, 11}
+    -- Load idle animation (sequential frames)
+    local idleFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
     for _, frameNum in ipairs(idleFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -139,8 +139,8 @@ function Player:loadAnimations()
         end
     end
     
-    -- Load walk animation
-    local walkFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
+    -- Load walk animation (sequential frames)
+    local walkFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
     for _, frameNum in ipairs(walkFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -155,8 +155,8 @@ function Player:loadAnimations()
         end
     end
     
-    -- Load run animation
-    local runFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+    -- Load run animation (sequential frames)
+    local runFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
     for _, frameNum in ipairs(runFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -171,8 +171,8 @@ function Player:loadAnimations()
         end
     end
     
-    -- Load jump animation
-    local jumpFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21}
+    -- Load jump animation (sequential frames)
+    local jumpFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
     for _, frameNum in ipairs(jumpFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -187,8 +187,8 @@ function Player:loadAnimations()
         end
     end
     
-    -- Load crouch animation
-    local crouchFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+    -- Load crouch animation (sequential frames)
+    local crouchFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
     for _, frameNum in ipairs(crouchFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -203,8 +203,8 @@ function Player:loadAnimations()
         end
     end
     
-    -- Load kick animation
-    local kickFrames = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}
+    -- Load kick animation (sequential frames)
+    local kickFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
     for _, frameNum in ipairs(kickFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -219,8 +219,8 @@ function Player:loadAnimations()
         end
     end
     
-    -- Load KO animation
-    local koFrames = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18}
+    -- Load KO animation (sequential frames)
+    local koFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18}
     for _, frameNum in ipairs(koFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -235,7 +235,8 @@ function Player:loadAnimations()
         end
     end
     
-    local danceFrames = {1, 3, 5, 7, 9, 11}
+    -- Load dance animation (sequential frames)
+    local danceFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
     for _, frameNum in ipairs(danceFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
@@ -265,7 +266,19 @@ function Player:update(dt)
             self.animationTimer = 0
             self.currentFrame = self.currentFrame + 1
             if self.currentFrame > #self.animations[self.currentAnimation].frames then
-                self.currentFrame = 1
+                -- If KO animation is complete, reset to idle
+                if self.currentAnimation == ANIMATION_STATES.KO then
+                    -- Reset to idle animation with proper frame initialization
+                    self.currentAnimation = ANIMATION_STATES.IDLE
+                    self.currentFrame = 1
+                    self.animationTimer = 0
+                    self.animationSpeed = Constants.PLAYER_ANIMATION_SPEED  -- Reset to default animation speed
+                    self.isImmobile = false  -- Allow movement after KO animation completes
+                    self.isKnockback = false  -- Reset knockback state
+                    logger:debug("Player %s KO animation complete, returning to idle", self.name)
+                else
+                    self.currentFrame = 1
+                end
             end
         end
         
@@ -400,13 +413,14 @@ function Player:update(dt)
         self.velocity = {x = 0, y = 0}
         self.isJumping = false
         self.isKicking = false
+        self.isKnockback = false
         self:setAnimation(ANIMATION_STATES.IDLE)
     end
 end
 
 function Player:draw()
-    -- Set color based on player's color
-    setColor(self.color)
+    -- Set color to white to prevent tinting the sprites
+    setColor("WHITE")
     
     -- Draw the current animation frame
     if self.animations[self.currentAnimation] and self.animations[self.currentAnimation].frames[self.currentFrame] then
@@ -438,8 +452,33 @@ function Player:draw()
         -- Restore the transformation
         love.graphics.pop()
     else
-        -- Fallback if animation frame is missing
+        -- Fallback if animation frame is missing - draw a colored rectangle based on animation state
+        local fallbackColor = "WHITE"
+        
+        -- Set different colors for different animation states
+        if self.currentAnimation == ANIMATION_STATES.KO then
+            fallbackColor = "RED"
+        elseif self.currentAnimation == ANIMATION_STATES.KICK then
+            fallbackColor = "ORANGE"
+        elseif self.currentAnimation == ANIMATION_STATES.JUMP then
+            fallbackColor = "GREEN"
+        elseif self.currentAnimation == ANIMATION_STATES.RUN then
+            fallbackColor = "BLUE"
+        elseif self.currentAnimation == ANIMATION_STATES.WALK then
+            fallbackColor = "YELLOW"
+        elseif self.currentAnimation == ANIMATION_STATES.CROUCH then
+            fallbackColor = "PURPLE"
+        elseif self.currentAnimation == ANIMATION_STATES.DANCE then
+            fallbackColor = "PINK"
+        end
+        
+        -- Draw the fallback rectangle with the appropriate color
+        setColor(fallbackColor)
         love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+        
+        -- Log the missing frame issue
+        logger:warning("Missing animation frame for player %s: %s frame %d", 
+            self.name, self.currentAnimation, self.currentFrame)
     end
     
     -- Draw hitbox for debugging
@@ -523,6 +562,20 @@ function Player:draw()
 end
 
 function Player:setAnimation(animation)
+    -- KO animation takes absolute priority over everything
+    if animation == ANIMATION_STATES.KO then
+        self.currentAnimation = animation
+        self.currentFrame = 1
+        self.animationTimer = 0
+        logger:debug("Player %s animation changed to %s (KO takes priority)", self.name, animation)
+        return
+    end
+    
+    -- Don't change animation if currently in KO state
+    if self.currentAnimation == ANIMATION_STATES.KO then
+        return
+    end
+    
     -- Don't change animation if currently kicking, unless explicitly setting to kick
     if self.isKicking and animation ~= ANIMATION_STATES.KICK then
         return
@@ -559,6 +612,10 @@ function Player:takeKnockback(velocity)
         self.velocity.y = velocity.y
         self.isJumping = true
         self:setAnimation(ANIMATION_STATES.KO)
+        
+        -- Calculate animation speed based on KO duration and number of frames
+        local numFrames = #self.animations[ANIMATION_STATES.KO].frames
+        self.animationSpeed = Constants.PLAYER_KO_DURATION / numFrames
         
         -- Set invulnerability and immobility
         self.isInvulnerable = true
