@@ -128,7 +128,7 @@ function Player:loadAnimations()
     for _, frameNum in ipairs(idleFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/idle/idle" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/characters/raccoon/idle/" .. frameNumber .. ".png")
         end)
         
         if success then
@@ -144,7 +144,7 @@ function Player:loadAnimations()
     for _, frameNum in ipairs(walkFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/walk/walk" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/characters/raccoon/walk/" .. frameNumber .. ".png")
         end)
         
         if success then
@@ -160,7 +160,7 @@ function Player:loadAnimations()
     for _, frameNum in ipairs(runFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/run/run" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/characters/raccoon/run/" .. frameNumber .. ".png")
         end)
         
         if success then
@@ -176,7 +176,7 @@ function Player:loadAnimations()
     for _, frameNum in ipairs(jumpFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/jump/jump" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/characters/raccoon/jump/" .. frameNumber .. ".png")
         end)
         
         if success then
@@ -192,7 +192,7 @@ function Player:loadAnimations()
     for _, frameNum in ipairs(crouchFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/crouch/crouch" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/characters/raccoon/crouch/" .. frameNumber .. ".png")
         end)
         
         if success then
@@ -208,7 +208,7 @@ function Player:loadAnimations()
     for _, frameNum in ipairs(kickFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/kick/kick" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/characters/raccoon/kick/" .. frameNumber .. ".png")
         end)
         
         if success then
@@ -224,7 +224,7 @@ function Player:loadAnimations()
     for _, frameNum in ipairs(koFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/ko/ko" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/characters/raccoon/ko/" .. frameNumber .. ".png")
         end)
         
         if success then
@@ -239,7 +239,7 @@ function Player:loadAnimations()
     for _, frameNum in ipairs(danceFrames) do
         local frameNumber = string.format("%04d", frameNum)
         local success, image = pcall(function() 
-            return love.graphics.newImage("assets/raccoon/dance/dance" .. frameNumber .. ".png")
+            return love.graphics.newImage("assets/characters/raccoon/dance/" .. frameNumber .. ".png")
         end)
         
         if success then
