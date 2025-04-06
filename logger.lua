@@ -5,11 +5,20 @@ local config = require("config")
 
 local logger = {}
 
+-- Initialize the logger with config settings
+function logger:init(loggingConfig)
+    if not loggingConfig then
+        loggingConfig = config.logging
+    end
+    self.config = loggingConfig
+    logger:info("Logger initialized")
+end
+
 -- Internal function to check if logging is enabled for a specific level and event type
 local function shouldLog(level, eventType)
-    if not config.logging.enabled then return false end
-    if not config.logging.levels[level] then return false end
-    if eventType and not config.logging.events[eventType] then return false end
+    if not logger.config.enabled then return false end
+    if not logger.config.levels[level] then return false end
+    if eventType and not logger.config.events[eventType] then return false end
     return true
 end
 

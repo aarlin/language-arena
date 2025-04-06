@@ -130,15 +130,28 @@ function Game.new()
     -- Preload character images to avoid loading during gameplay
     self.characterImages = {}
     for _, char in ipairs(characters) do
-        local imagePath = "assets/characters/" .. string.lower(char.meaning) .. ".png"
+        -- Try to load SVG file first
+        local imagePath = "assets/falling-objects/" .. string.lower(char.meaning) .. "/" .. string.lower(char.meaning) .. ".svg"
         local success, image = pcall(function()
             return love.graphics.newImage(imagePath)
         end)
         
         if success then
             self.characterImages[char.meaning] = image
+            logger:info("Preloaded character SVG image: %s", char.meaning)
         else
-            logger:warning("Failed to preload character image: %s", imagePath)
+            -- If SVG fails, try PNG as fallback
+            local imagePath2 = "assets/falling-objects/" .. string.lower(char.meaning) .. "/" .. string.lower(char.meaning) .. ".png"
+            local success2, image2 = pcall(function()
+                return love.graphics.newImage(imagePath2)
+            end)
+            
+            if success2 then
+                self.characterImages[char.meaning] = image2
+                logger:info("Preloaded character PNG image: %s", char.meaning)
+            else
+                logger:warning("Failed to preload character image: %s, falling back to circle", char.meaning)
+            end
         end
     end
     
@@ -791,8 +804,8 @@ function Game:spawnBox()
         if self.characterImages[randomCharacter.meaning] then
             box.image = self.characterImages[randomCharacter.meaning]
         else
-            -- Load the character image from assets/characters directory
-            local imagePath = "assets/characters/" .. string.lower(randomCharacter.meaning) .. ".png"
+            -- Try to load SVG file first
+            local imagePath = "assets/falling-objects/" .. string.lower(randomCharacter.meaning) .. "/" .. string.lower(randomCharacter.meaning) .. ".svg"
             local success, loadedImage = pcall(function()
                 return love.graphics.newImage(imagePath)
             end)
@@ -801,9 +814,23 @@ function Game:spawnBox()
                 box.image = loadedImage
                 -- Cache the image for future use
                 self.characterImages[randomCharacter.meaning] = loadedImage
+                logger:info("Loaded character SVG image: %s", randomCharacter.meaning)
             else
-                logger:warning("Failed to load character image: %s, falling back to circle", imagePath)
-                box.useCircle = true  -- Fall back to circle if image loading fails
+                -- If SVG fails, try PNG as fallback
+                local imagePath2 = "assets/falling-objects/" .. string.lower(randomCharacter.meaning) .. "/" .. string.lower(randomCharacter.meaning) .. ".png"
+                local success2, loadedImage2 = pcall(function()
+                    return love.graphics.newImage(imagePath2)
+                end)
+                
+                if success2 then
+                    box.image = loadedImage2
+                    -- Cache the image for future use
+                    self.characterImages[randomCharacter.meaning] = loadedImage2
+                    logger:info("Loaded character PNG image: %s", randomCharacter.meaning)
+                else
+                    logger:warning("Failed to load character image: %s, falling back to circle", randomCharacter.meaning)
+                    box.useCircle = true  -- Fall back to circle if image loading fails
+                end
             end
         end
     end
@@ -1082,6 +1109,11 @@ function Game:cleanup()
     logger:info("Cleaned up game resources")
 end
 
+function Game:isGameOver()
+    -- Game is over if we're in the gameover state
+    return self.gameState == "gameover"
+end
+
 function Game:startGame()
     -- Stop any playing music
     if self.currentMusic then
@@ -1104,6 +1136,18 @@ function Game:startGame()
     self.boxes = {}
     
     logger:info("Game started with %d players", #self.controllers)
+end
+
+function Game:addPlayer(x, y, color, controls, characterType)
+    local Player = require("player")
+    local player = Player.new(x, y, color, controls, characterType)
+    table.insert(self.controllers, {
+        joystick = nil,  -- Will be set by setController if needed
+        player = player,
+        isBot = false
+    })
+    logger:info("Added player to game: %s with character type %s", player.name, characterType)
+    return player
 end
 
 return Game 
