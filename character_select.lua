@@ -8,11 +8,11 @@ CharacterSelect.__index = CharacterSelect
 
 -- Available characters
 local CHARACTERS = {
+    {id = "raccoon", name = "Raccoon", image = nil},
     {id = "sheep", name = "Sheep", image = nil},
     {id = "pig", name = "Pig", image = nil},
     {id = "cow", name = "Cow", image = nil},
     {id = "chicken", name = "Chicken", image = nil},
-    {id = "raccoon", name = "Raccoon", image = nil}
 }
 
 function CharacterSelect.new()

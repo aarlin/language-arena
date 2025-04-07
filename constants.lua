@@ -8,7 +8,7 @@ Constants.CHARACTER_CHANGE_MAX_TIME = 25  -- Maximum time between character chan
 Constants.SPAWN_INTERVAL = 2  -- Time between box spawns
 Constants.SCREEN_WIDTH = love._console == "Switch" and 1280 or 1920  -- Game screen width
 Constants.SCREEN_HEIGHT = love._console == "Switch" and 720 or 1080  -- Game screen height
-Constants.GROUND_Y = 100  -- Y position of the ground
+Constants.GROUND_Y = Constants.SCREEN_HEIGHT - 50  -- Y position of the ground (100 pixels from bottom)
 
 -- Player settings
 Constants.PLAYER_SPEED = 300  -- Base movement speed
@@ -50,6 +50,7 @@ Constants.DEBUG_LABEL_OFFSET = 20  -- Offset for debug labels
 Constants.KNOCKBACK_FORCE_X = 800  -- Horizontal knockback force (increased to move players the full distance)
 Constants.KNOCKBACK_FORCE_Y = 10  -- Vertical knockback force
 Constants.KNOCKBACK_DISTANCE = 100  -- Distance to push a player when knocked back
+Constants.KNOCKBACK_DURATION = 1.0  -- Duration of knockback effect in seconds
 Constants.KICK_HITBOX_WIDTH = 50  -- Width of kick hitbox
 Constants.KICK_HITBOX_HEIGHT = 100  -- Height of kick hitbox
 Constants.KICK_HITBOX_OFFSET_X = 100  -- Horizontal offset of kick hitbox
