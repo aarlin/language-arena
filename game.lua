@@ -175,18 +175,13 @@ function Game:setupControllers()
     for i = 1, math.min(4, #joysticks) do
         local joystick = joysticks[i]
         if joystick:isGamepad() then
-            -- Check if we're on Nintendo Switch
-            local isSwitch = love._console == "Switch"
-            
-            -- Determine which stick to use based on platform
-            local movementStick = isSwitch and "leftx" or "rightx"
             
             local player = Player.new(100 + (i-1) * 200, Constants.GROUND_Y - 500,  -- Position higher on the screen
                 {love.math.random(), love.math.random(), love.math.random()},
                 {
                     controller = i,
-                    left = movementStick,  -- Use appropriate stick for movement
-                    right = movementStick, -- Use appropriate stick for movement
+                    left = "leftx",  -- Use appropriate stick for movement
+                    right = "rightx",  -- Use appropriate stick for movement
                     jump = "a",      -- A button on Switch
                     down = "b",      -- B button on Switch (now used for running)
                     kick = "leftshoulder",     -- X button on Switch
@@ -200,7 +195,7 @@ function Game:setupControllers()
                 player = player,
                 isBot = false
             })
-            logger:info("Controller %d setup: %s (using %s for movement)", i, joystick:getName(), movementStick)
+            logger:info("Controller %d setup: %s", i, joystick:getName())
         end
     end
     
@@ -221,7 +216,7 @@ function Game:setupControllers()
                 {
                     controller = botIndex,
                     left = "leftx",
-                    right = "leftx",
+                    right = "rightx",
                     jump = "a",
                     down = "b",
                     kick = "leftshoulder",
@@ -531,48 +526,55 @@ function Game:draw()
             love.graphics.print("Game Time: " .. math.floor(self.gameTimer), 10, 70)
         end
         
-        -- Draw hitboxes if enabled
-        if config.debug.showHitboxes then
-            for _, controller in ipairs(self.controllers) do
-                local player = controller.player
+        -- Add joystick movement debug info
+        if config.debug.showJoystickMovement then
+            logger:debug("Joystick debug display enabled")
+            logger:debug("Number of controllers: %d", #self.controllers)
+            
+            local debugY = 100
+            for i, controller in ipairs(self.controllers) do
+                logger:debug("Controller %d: isBot=%s, hasJoystick=%s", 
+                    i, tostring(controller.isBot), tostring(controller.joystick ~= nil))
                 
-                -- Draw the expanded hitbox
-                love.graphics.setColor(Constants.COLORS.RED_TRANSPARENT)  -- Semi-transparent red
-                local expansionX = player.width * Constants.HITBOX_EXPANSION_X
-                local expansionY = player.height * Constants.HITBOX_EXPANSION_Y
-                love.graphics.rectangle("fill", 
-                    player.x - expansionX, 
-                    player.y - expansionY, 
-                    player.width * 1.5, 
-                    player.height * 1.5)
-                
-                -- Draw the original player rectangle
-                love.graphics.setColor(Constants.COLORS.GREEN_TRANSPARENT)  -- Green for the player model
-                love.graphics.rectangle("line", player.x, player.y, player.width, player.height)
-                
-                -- Draw the collection hitbox
-                love.graphics.setColor(Constants.COLORS.RED_TRANSPARENT)  -- Red for the collection hitbox
-                love.graphics.rectangle("line", 
-                    player.x - expansionX, 
-                    player.y - expansionY, 
-                    player.width * 1.5, 
-                    player.height * 1.5)
-                
-                -- Draw kick hitbox if player is kicking
-                if player.isKicking then
-                    love.graphics.setColor(Constants.COLORS.ORANGE_TRANSPARENT)  -- Orange for kick hitbox
-                    local kickX
-                    if player.velocity.x > 0 then
-                        kickX = player.x + player.width + Constants.KICK_HITBOX_OFFSET_X
-                    else
-                        kickX = player.x - Constants.KICK_HITBOX_OFFSET_X - Constants.KICK_HITBOX_WIDTH
-                    end
-                    local kickY = player.y + player.height/2 - Constants.KICK_HITBOX_OFFSET_Y
-                    love.graphics.rectangle("fill", kickX, kickY, Constants.KICK_HITBOX_WIDTH, Constants.KICK_HITBOX_HEIGHT)
-                    love.graphics.setColor(Constants.COLORS.ORANGE)  -- Solid orange for outline
-                    love.graphics.rectangle("line", kickX, kickY, Constants.KICK_HITBOX_WIDTH, Constants.KICK_HITBOX_HEIGHT)
+                if not controller.isBot and controller.joystick then
+                    -- Get joystick values
+                    local leftX = controller.joystick:getAxis(1)  -- Left stick X
+                    local leftY = controller.joystick:getAxis(2)  -- Left stick Y
+                    local rightX = controller.joystick:getAxis(3)  -- Right stick X
+                    local rightY = controller.joystick:getAxis(4)  -- Right stick Y
+                    
+                    logger:debug("Player %d joystick values: Left(%.2f, %.2f), Right(%.2f, %.2f)", 
+                        i, leftX, leftY, rightX, rightY)
+                    
+                    -- Print player name and joystick values
+                    love.graphics.print(string.format("Player %d: %s", i, controller.player.name), 10, debugY)
+                    love.graphics.print(string.format("Left: (%.2f, %.2f)", leftX, leftY), 10, debugY + 20)
+                    love.graphics.print(string.format("Right: (%.2f, %.2f)", rightX, rightY), 10, debugY + 40)
+                    
+                    -- Draw visual representation of joystick movement
+                    local stickSize = 30
+                    local centerX = 150
+                    local centerY = debugY + 15
+                    
+                    -- Left stick
+                    love.graphics.setColor(Constants.COLORS.GREEN)
+                    love.graphics.circle("line", centerX, centerY, stickSize/2)
+                    love.graphics.circle("fill", centerX + leftX * stickSize/2, centerY + leftY * stickSize/2, 5)
+                    
+                    -- Right stick
+                    centerX = 300
+                    love.graphics.setColor(Constants.COLORS.BLUE)
+                    love.graphics.circle("line", centerX, centerY, stickSize/2)
+                    love.graphics.circle("fill", centerX + rightX * stickSize/2, centerY + rightY * stickSize/2, 5)
+                    
+                    debugY = debugY + 80
                 end
             end
+        end
+        
+        -- Draw hitboxes if enabled
+        if config.debug.showHitboxes then
+            -- Implementation of showHitboxes function
         end
     end
 end
@@ -952,7 +954,8 @@ function Game:checkCollisions()
                                 x = player1.facingRight and -Constants.KNOCKBACK_FORCE_X or Constants.KNOCKBACK_FORCE_X,  -- Push in opposite direction of kicker
                                 y = -Constants.KNOCKBACK_FORCE_Y  -- Minimal upward knockback
                             }
-                            player2:takeKnockback(knockbackVel)
+                            -- Pass the kicker's facing direction to the takeKnockback method
+                            player2:takeKnockback(knockbackVel, player1.facingRight)
                             logger:info("Player %s kicked Player %s", player1.name, player2.name)
                         end
                     end

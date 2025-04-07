@@ -44,9 +44,14 @@ function love.load()
             name = "Player " .. i,
             controller = controller,
             controls = {
-                jump = "a",
-                kick = "b",
-                down = "dpdown"
+                controller = i,
+                left = "leftx",
+                right = "rightx",
+                jump = "a",      -- A button on Switch
+                down = "b",      -- B button on Switch (now used for running)
+                kick = "leftshoulder",     -- X button on Switch
+                start = "start", -- Plus button on Switch
+                back = "back"    -- Minus button on Switch
             }
         }
         table.insert(players, player)

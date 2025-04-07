@@ -6,8 +6,8 @@ Constants.GAME_DURATION = 120  -- 2 minutes game time
 Constants.CHARACTER_CHANGE_MIN_TIME = 15  -- Minimum time between character changes
 Constants.CHARACTER_CHANGE_MAX_TIME = 25  -- Maximum time between character changes
 Constants.SPAWN_INTERVAL = 2  -- Time between box spawns
-Constants.SCREEN_WIDTH = 1200  -- Game screen width
-Constants.SCREEN_HEIGHT = 800  -- Game screen height
+Constants.SCREEN_WIDTH = love._console == "Switch" and 1280 or 1920  -- Game screen width
+Constants.SCREEN_HEIGHT = love._console == "Switch" and 720 or 1080  -- Game screen height
 Constants.GROUND_Y = 100  -- Y position of the ground
 
 -- Player settings
@@ -47,8 +47,9 @@ Constants.COLLECTION_OFFSET_Y = 0  -- Vertical offset for collection box
 Constants.DEBUG_LABEL_OFFSET = 20  -- Offset for debug labels
 
 -- Game mechanics
-Constants.KNOCKBACK_FORCE_X = 200  -- Horizontal knockback force
+Constants.KNOCKBACK_FORCE_X = 800  -- Horizontal knockback force (increased to move players the full distance)
 Constants.KNOCKBACK_FORCE_Y = 10  -- Vertical knockback force
+Constants.KNOCKBACK_DISTANCE = 100  -- Distance to push a player when knocked back
 Constants.KICK_HITBOX_WIDTH = 50  -- Width of kick hitbox
 Constants.KICK_HITBOX_HEIGHT = 100  -- Height of kick hitbox
 Constants.KICK_HITBOX_OFFSET_X = 100  -- Horizontal offset of kick hitbox

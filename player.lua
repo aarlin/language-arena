@@ -88,6 +88,20 @@ function Player.new(x, y, color, controls, characterType)
     self.immobilityTimer = 0
     self.immobilityDuration = Constants.PLAYER_IMMOBILITY_DURATION
     
+    -- Knockback properties
+    self.isKnockback = false
+    self.knockbackTimer = 0
+    self.knockbackDuration = Constants.PLAYER_KO_DURATION
+    self.bounceCount = 0
+    self.maxBounces = 3
+    self.bounceHeight = 100
+    self.bounceDecay = 0.7  -- How much the bounce height decreases each time
+    
+    -- Flashing effect properties
+    self.flashTimer = 0
+    self.flashInterval = 0.1  -- Time between flashes
+    self.isFlashing = false
+    
     -- Check if running on Nintendo Switch
     self.isSwitch = love._console == "Switch"
     
@@ -189,20 +203,20 @@ function Player:loadAnimations()
     end
     
     -- Load crouch animation (sequential frames)
-    local crouchFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
-    for _, frameNum in ipairs(crouchFrames) do
-        local frameNumber = string.format("%04d", frameNum)
-        local success, image = pcall(function() 
-            return love.graphics.newImage("assets/characters/" .. self.characterType .. "/crouch/" .. frameNumber .. ".png")
-        end)
+    -- local crouchFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
+    -- for _, frameNum in ipairs(crouchFrames) do
+    --     local frameNumber = string.format("%04d", frameNum)
+    --     local success, image = pcall(function() 
+    --         return love.graphics.newImage("assets/characters/" .. self.characterType .. "/crouch/" .. frameNumber .. ".png")
+    --     end)
         
-        if success then
-            table.insert(self.animations[ANIMATION_STATES.CROUCH].frames, image)
-            logger:debug("Loaded crouch animation frame: crouch%s.png", frameNumber)
-        else
-            logger:error("Failed to load crouch animation frame: crouch%s.png - %s", frameNumber, image)
-        end
-    end
+    --     if success then
+    --         table.insert(self.animations[ANIMATION_STATES.CROUCH].frames, image)
+    --         logger:debug("Loaded crouch animation frame: crouch%s.png", frameNumber)
+    --     else
+    --         logger:error("Failed to load crouch animation frame: crouch%s.png - %s", frameNumber, image)
+    --     end
+    -- end
     
     -- Load kick animation (sequential frames)
     local kickFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
@@ -237,20 +251,20 @@ function Player:loadAnimations()
     end
     
     -- Load dance animation (sequential frames)
-    local danceFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
-    for _, frameNum in ipairs(danceFrames) do
-        local frameNumber = string.format("%04d", frameNum)
-        local success, image = pcall(function() 
-            return love.graphics.newImage("assets/characters/" .. self.characterType .. "/dance/" .. frameNumber .. ".png")
-        end)
+    -- local danceFrames = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
+    -- for _, frameNum in ipairs(danceFrames) do
+    --     local frameNumber = string.format("%04d", frameNum)
+    --     local success, image = pcall(function() 
+    --         return love.graphics.newImage("assets/characters/" .. self.characterType .. "/dance/" .. frameNumber .. ".png")
+    --     end)
         
-        if success then
-            table.insert(self.animations[ANIMATION_STATES.DANCE].frames, image)
-            logger:debug("Loaded dance animation frame: dance%s.png", frameNumber)
-        else
-            logger:error("Failed to load dance animation frame: dance%s.png - %s", frameNumber, image)
-        end
-    end
+    --     if success then
+    --         table.insert(self.animations[ANIMATION_STATES.DANCE].frames, image)
+    --         logger:debug("Loaded dance animation frame: dance%s.png", frameNumber)
+    --     else
+    --         logger:error("Failed to load dance animation frame: dance%s.png - %s", frameNumber, image)
+    --     end
+    -- end
 end
 
 function Player:setController(joystick)
@@ -276,6 +290,7 @@ function Player:update(dt)
                     self.animationSpeed = Constants.PLAYER_ANIMATION_SPEED  -- Reset to default animation speed
                     self.isImmobile = false  -- Allow movement after KO animation completes
                     self.isKnockback = false  -- Reset knockback state
+                    self.bounceCount = 0  -- Reset bounce count
                     logger:debug("Player %s KO animation complete, returning to idle", self.name)
                 else
                     self.currentFrame = 1
@@ -286,9 +301,18 @@ function Player:update(dt)
         -- Update invulnerability timer
         if self.isInvulnerable then
             self.invulnerabilityTimer = self.invulnerabilityTimer + dt
+            
+            -- Update flashing effect
+            self.flashTimer = self.flashTimer + dt
+            if self.flashTimer >= self.flashInterval then
+                self.flashTimer = 0
+                self.isFlashing = not self.isFlashing
+            end
+            
             if self.invulnerabilityTimer >= self.invulnerabilityDuration then
                 self.isInvulnerable = false
                 self.invulnerabilityTimer = 0
+                self.isFlashing = false
                 logger:debug("Player %s is no longer invulnerable", self.name)
             end
         end
@@ -300,6 +324,34 @@ function Player:update(dt)
                 self.isImmobile = false
                 self.immobilityTimer = 0
                 logger:debug("Player %s can move again", self.name)
+            end
+        end
+        
+        -- Update knockback timer and handle bouncing
+        if self.isKnockback then
+            self.knockbackTimer = self.knockbackTimer + dt
+            
+            -- Handle bouncing physics
+            if self.y >= Constants.SCREEN_HEIGHT - self.height then
+                -- Player hit the ground, bounce
+                if self.bounceCount < self.maxBounces then
+                    self.bounceCount = self.bounceCount + 1
+                    -- Calculate bounce height with decay
+                    local bounceForce = -self.bounceHeight * (self.bounceDecay ^ (self.bounceCount - 1))
+                    self.velocity.y = bounceForce
+                    logger:debug("Player %s bounced (bounce %d/%d)", self.name, self.bounceCount, self.maxBounces)
+                else
+                    -- Max bounces reached, stop bouncing
+                    self.velocity.y = 0
+                    logger:debug("Player %s stopped bouncing after %d bounces", self.name, self.bounceCount)
+                end
+            end
+            
+            if self.knockbackTimer >= self.knockbackDuration then
+                self.isKnockback = false
+                self.knockbackTimer = 0
+                self.bounceCount = 0
+                logger:debug("Player %s knockback complete", self.name)
             end
         end
         
@@ -352,6 +404,7 @@ function Player:update(dt)
             -- Movement (only if not kicking)
             if not self.isKicking then
                 local moveX = self.controller:getGamepadAxis("leftx")
+                
                 if math.abs(moveX) > 0.1 then
                     -- Determine if running
                     local isRunningNow = false
@@ -539,10 +592,11 @@ function Player:draw()
             self.x, self.y - 60)
     end
     
-    -- Draw invulnerability indicator
-    if self.isInvulnerable then
-        setColor("BLUE", 0.7)  -- Blue
-        love.graphics.circle("fill", self.x + self.width/2, self.y + self.height/2, 30)
+    -- Draw invulnerability indicator (flashing effect instead of blue circle)
+    if self.isInvulnerable and self.isFlashing then
+        -- Draw a flashing outline around the player
+        setColor("BLUE", 0.7)  -- Blue with transparency
+        love.graphics.rectangle("line", self.x - 5, self.y - 5, self.width + 10, self.height + 10)
     end
     
     -- Draw immobility indicator
@@ -606,11 +660,22 @@ function Player:kick()
     logger:info("Player %s kicked", self.name)
 end
 
-function Player:takeKnockback(velocity)
+function Player:takeKnockback(velocity, kickerFacingRight)
     -- Only take knockback if not invulnerable
     if not self.isInvulnerable then
-        self.velocity.x = velocity.x
-        self.velocity.y = velocity.y
+        -- Set velocity based on kicker's facing direction
+        if kickerFacingRight then
+            -- Kicker is facing right, push player right
+            self.velocity.x = Constants.KNOCKBACK_FORCE_X
+            logger:debug("Player %s knocked back to the right with force %.2f", self.name, self.velocity.x)
+        else
+            -- Kicker is facing left, push player left
+            self.velocity.x = -Constants.KNOCKBACK_FORCE_X
+            logger:debug("Player %s knocked back to the left with force %.2f", self.name, self.velocity.x)
+        end
+        
+        -- Apply upward velocity for bounce effect
+        self.velocity.y = velocity.y or -Constants.KNOCKBACK_FORCE_Y
         self.isJumping = true
         self:setAnimation(ANIMATION_STATES.KO)
         
@@ -623,6 +688,15 @@ function Player:takeKnockback(velocity)
         self.invulnerabilityTimer = 0
         self.isImmobile = true
         self.immobilityTimer = 0
+        
+        -- Set knockback state
+        self.isKnockback = true
+        self.knockbackTimer = 0
+        self.bounceCount = 0
+        
+        -- Initialize flashing effect
+        self.flashTimer = 0
+        self.isFlashing = true
         
         -- Could add sound effects here
         -- love.audio.play(hitSound)
