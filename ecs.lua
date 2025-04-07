@@ -140,13 +140,21 @@ function ECS:createPlayer(x, y, color, controls, joystick, isBot)
 end
 
 -- Create a box entity
-function ECS:createBox(x, y, meaning, speed)
+function ECS:createBox(x, y, meaning, speed, characterType, isPoop)
     local entity = self:createEntity()
+    
+    -- Determine image path based on character type or if it's a poop
+    local imagePath = ""
+    if isPoop then
+        imagePath = "assets/falling-objects/poop.jpg"
+    elseif characterType and characterType ~= "" then
+        imagePath = "assets/falling-objects/" .. characterType .. ".png"
+    end
     
     -- Add components
     entity:give("position", x, y)
     entity:give("dimensions", Constants.BOX_WIDTH, Constants.BOX_HEIGHT)
-    entity:give("box", meaning, speed)
+    entity:give("box", meaning, speed, characterType, imagePath, isPoop)
     
     return entity
 end

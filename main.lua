@@ -5,6 +5,8 @@ local logger = require("logger")
 local Constants = require("constants")
 local config = require("config")
 local PlayerMovement = require("systems.player_movement")  -- Import the PlayerMovement system
+local Players = require("players")  -- Import the Players module
+local Orbs = require("orbs")  -- Import the Orbs module
 
 -- Game states
 local GAME_STATES = {
@@ -21,6 +23,7 @@ local characterSelect = nil
 local controllers = {}
 local gameTimer = 0
 local spawnTimer = 0
+local playerEntities = {}  -- Store references to player entities
 
 -- Initialize the game
 function love.load()
@@ -56,13 +59,15 @@ function love.load()
         
         -- Create player entity
         local color = {love.math.random(), love.math.random(), love.math.random()}
-        ecs:createPlayer(100 + (i-1) * 200, Constants.GROUND_Y - Constants.PLAYER_HEIGHT, color, controls, joystick, false)
+        local entity = ecs:createPlayer(100 + (i-1) * 200, Constants.GROUND_Y - Constants.PLAYER_HEIGHT, color, controls, joystick, false)
+        table.insert(playerEntities, entity)  -- Store the entity reference
         
         -- Add to character select
         characterSelect:addPlayer({
             name = "Player " .. i,
             controller = joystick,
-            controls = controls
+            controls = controls,
+            entity = entity  -- Store the entity reference in the character select player
         })
         
         logger:info("Added player: Player %d", i)
@@ -74,13 +79,15 @@ function love.load()
         
         -- Create keyboard player entity
         local color = {love.math.random(), love.math.random(), love.math.random()}
-        ecs:createPlayer(100, Constants.GROUND_Y - Constants.PLAYER_HEIGHT, color, {}, nil, false)
+        local entity = ecs:createPlayer(100, Constants.GROUND_Y - Constants.PLAYER_HEIGHT, color, {}, nil, false)
+        table.insert(playerEntities, entity)  -- Store the entity reference
         
         -- Add to character select
         characterSelect:addPlayer({
             name = "Keyboard Player",
             controller = nil,
-            controls = {}
+            controls = {},
+            entity = entity  -- Store the entity reference in the character select player
         })
     end
 end
@@ -99,22 +106,11 @@ function love.update(dt)
             local selectedCharacters = characterSelect:getSelectedCharacters()
             
             -- Apply selected characters to players
-            local playerMovementSystem = ecs.world:getSystem(PlayerMovement)
-            if playerMovementSystem then
-                for _, entity in ipairs(playerMovementSystem.pool) do
-                    local player = entity.player
-                    local controller = entity.controller
-                    
-                    -- Find the player in the character select
-                    for selectPlayer, characterType in pairs(selectedCharacters) do
-                        if selectPlayer.controller and controller.joystick and 
-                           selectPlayer.controller == controller.joystick then
-                            -- Set the character type
-                            player.characterType = characterType
-                            logger:info("Player %s assigned character: %s", player.name, characterType)
-                            break
-                        end
-                    end
+            for selectPlayer, characterType in pairs(selectedCharacters) do
+                if selectPlayer.entity then  -- Check if we have the entity reference
+                    local player = selectPlayer.entity.player
+                    player.characterType = characterType
+                    logger:info("Player %s assigned character: %s", player.name, characterType)
                 end
             end
             
@@ -129,11 +125,23 @@ function love.update(dt)
         -- Update spawn timer
         spawnTimer = spawnTimer + dt
         if spawnTimer >= Constants.SPAWN_INTERVAL then
+            -- Determine if we should spawn a poop (20% chance)
+            local isPoop = love.math.random() < 0.2
+            
             -- Spawn a new box
             local x = love.math.random(Constants.BOX_SPAWN_MIN_X, Constants.BOX_SPAWN_MAX_X)
-            local meaning = "Test"  -- This would be replaced with actual character data
             local speed = love.math.random(Constants.BOX_MIN_SPEED, Constants.BOX_MAX_SPEED)
-            ecs:createBox(x, Constants.BOX_SPAWN_Y, meaning, speed)
+            
+            -- Get a random character from the Chinese characters list or create a poop orb
+            local orbData
+            if isPoop then
+                orbData = Orbs.createPoopOrb()
+            else
+                orbData = Orbs.getRandomChineseCharacter()
+            end
+            
+            -- Create the box with character type and poop flag
+            ecs:createBox(x, Constants.BOX_SPAWN_Y, orbData.character, speed, orbData.meaning, isPoop)
             
             spawnTimer = 0
         end
@@ -162,6 +170,20 @@ function love.draw()
         -- Draw game timer
         love.graphics.setColor(Constants.COLORS.WHITE)
         love.graphics.print("Time: " .. math.floor(gameTimer), Constants.SCREEN_WIDTH - 200, 10)
+        
+        -- Draw score and current character for each player
+        for i, entity in ipairs(playerEntities) do
+            local player = entity.player
+            local score = player.score or 0
+            local characterType = player.characterType or "Unknown"
+            
+            -- Draw score
+            love.graphics.setColor(Constants.COLORS.WHITE)
+            love.graphics.print("Player " .. i .. " Score: " .. score, 20, 50 + (i-1) * 30)
+            
+            -- Draw current character
+            love.graphics.print("Current Character: " .. characterType, 20, 80 + (i-1) * 30)
+        end
     elseif gameState == GAME_STATES.GAME_OVER then
         -- Game over drawing
         love.graphics.setColor(Constants.COLORS.WHITE)
@@ -204,7 +226,7 @@ function love.gamepadpressed(joystick, button)
         -- Find the player with this controller and pass the button press
         local playerMovementSystem = ecs.world:getSystem(PlayerMovement)
         if playerMovementSystem then
-            for _, entity in ipairs(playerMovementSystem.pool) do
+            for _, entity in ipairs(playerMovementSystem.players) do
                 if entity.controller and entity.controller.joystick == joystick then
                     -- Handle button press
                     if button == "start" then

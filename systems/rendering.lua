@@ -14,6 +14,31 @@ local Rendering = Concord.system({
     controllers = {"controller", "player"}
 })
 
+-- Update animation frames
+function Rendering:update(dt)
+    for _, entity in ipairs(self.players) do
+        local player = entity.player
+        local animation = entity.animation
+        
+        if player.characterType and player.characterType ~= "" then
+            -- Update animation timer
+            animation.animationTimer = animation.animationTimer + dt
+            
+            -- Update frame when timer exceeds animation speed
+            if animation.animationTimer >= animation.animationSpeed then
+                animation.animationTimer = 0
+                animation.currentFrame = animation.currentFrame + 1
+                
+                -- Loop back to first frame if we've reached the end
+                local maxFrames = animation.maxFrames[animation.currentAnimation] or 1
+                if animation.currentFrame > maxFrames then
+                    animation.currentFrame = 1
+                end
+            end
+        end
+    end
+end
+
 function Rendering:draw()
     -- Draw background
     love.graphics.setColor(1, 1, 1, 1)
@@ -26,28 +51,17 @@ function Rendering:draw()
         local dimensions = entity.dimensions
         local animation = entity.animation
         
-        -- Set color based on player color
-        love.graphics.setColor(player.color)
-        
         -- Draw player as animal character
         if player.characterType and player.characterType ~= "" then
             -- Determine animation state and frame number
-            local animationState = "idle"
-            local frameNumber = 1
-            
-            if player.isKicking then
-                animationState = "kick"
-            elseif player.isJumping then
-                animationState = "jump"
-            elseif player.isRunning then
-                animationState = "run"
-            elseif player.isImmobile then
-                animationState = "ko"
-            end
+            local animationState = animation.currentAnimation
+            local frameNumber = animation.currentFrame
             
             -- Load character image based on character type and animation state
             local success, characterImage = pcall(function()
-                return love.graphics.newImage("assets/characters/" .. player.characterType .. "/" .. animationState .. "/" .. frameNumber .. ".png")
+                -- Use the correct file naming convention (4-digit numbers with leading zeros)
+                local frameNumberStr = string.format("%04d", animation.currentFrame)
+                return love.graphics.newImage("assets/characters/" .. player.characterType .. "/" .. animationState .. "/" .. frameNumberStr .. ".png")
             end)
             
             if success then
@@ -105,9 +119,35 @@ function Rendering:draw()
         local position = entity.position
         local dimensions = entity.dimensions
         
-        -- Draw box (simple rectangle for now)
-        love.graphics.setColor(Constants.COLORS.YELLOW)
-        love.graphics.rectangle("fill", position.x, position.y, dimensions.width, dimensions.height)
+        -- Draw box with image if available
+        if box.imagePath and box.imagePath ~= "" then
+            -- Try to load the image if not already loaded
+            if not box.image then
+                local success, loadedImage = pcall(function()
+                    return love.graphics.newImage(box.imagePath)
+                end)
+                
+                if success then
+                    box.image = loadedImage
+                end
+            end
+            
+            -- Draw the image if loaded successfully
+            if box.image then
+                love.graphics.setColor(1, 1, 1, 1)  -- White color for the image
+                love.graphics.draw(box.image, position.x, position.y, 0, 
+                    dimensions.width / box.image:getWidth(), 
+                    dimensions.height / box.image:getHeight())
+            else
+                -- Fallback to colored rectangle if image loading fails
+                love.graphics.setColor(box.isPoop and Constants.COLORS.BROWN or Constants.COLORS.YELLOW)
+                love.graphics.rectangle("fill", position.x, position.y, dimensions.width, dimensions.height)
+            end
+        else
+            -- Fallback to colored rectangle if no image path
+            love.graphics.setColor(box.isPoop and Constants.COLORS.BROWN or Constants.COLORS.YELLOW)
+            love.graphics.rectangle("fill", position.x, position.y, dimensions.width, dimensions.height)
+        end
         
         -- Draw box meaning
         love.graphics.setColor(Constants.COLORS.WHITE)

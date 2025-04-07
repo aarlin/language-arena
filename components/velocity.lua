@@ -1,5 +1,5 @@
 -- Velocity component
-local Concord = require("lib.concord")
+local Concord = require("lib.concord.init")
 
 local Velocity = Concord.component("velocity", function(c, x, y)
     c.x = x or 0
