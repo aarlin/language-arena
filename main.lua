@@ -1,9 +1,10 @@
 -- Import required modules
-local Game = require("game")
+local ECS = require("ecs")
 local CharacterSelect = require("character_select")
 local logger = require("logger")
 local Constants = require("constants")
 local config = require("config")
+local PlayerMovement = require("systems.player_movement")  -- Import the PlayerMovement system
 
 -- Game states
 local GAME_STATES = {
@@ -15,10 +16,11 @@ local GAME_STATES = {
 
 -- Global variables
 local gameState = GAME_STATES.TITLE
-local game = nil
+local ecs = nil
 local characterSelect = nil
-local players = {}
 local controllers = {}
+local gameTimer = 0
+local spawnTimer = 0
 
 -- Initialize the game
 function love.load()
@@ -26,8 +28,10 @@ function love.load()
     logger:init(config.logging)
     logger:info("Game starting...")
     
-    -- Initialize game objects
-    game = Game.new()
+    -- Initialize ECS
+    ecs = ECS:init()
+    
+    -- Initialize character select
     characterSelect = CharacterSelect.new()
     
     -- Set up controllers
@@ -39,56 +43,54 @@ function love.load()
     end
     
     -- Create players based on connected controllers
-    for i, controller in ipairs(controllers) do
-        local player = {
-            name = "Player " .. i,
-            controller = controller,
-            controls = {
-                controller = i,
-                left = "leftx",
-                right = "rightx",
-                jump = "a",      -- A button on Switch
-                down = "b",      -- B button on Switch (now used for running)
-                kick = "leftshoulder",     -- X button on Switch
-                start = "start", -- Plus button on Switch
-                back = "back"    -- Minus button on Switch
-            }
+    for i, joystick in ipairs(controllers) do
+        local controls = {
+            controller = i,
+            left = "leftx",  -- Use appropriate stick for movement
+            jump = "a",      -- A button on Switch
+            down = "b",      -- B button on Switch (now used for running)
+            kick = "leftshoulder",     -- X button on Switch
+            start = "start", -- Plus button on Switch
+            back = "back"    -- Minus button on Switch
         }
-        table.insert(players, player)
-        characterSelect:addPlayer(player)
-        logger:info("Added player: %s", player.name)
+        
+        -- Create player entity
+        local color = {love.math.random(), love.math.random(), love.math.random()}
+        ecs:createPlayer(100 + (i-1) * 200, Constants.PLAYER_HEIGHT + 50, color, controls, joystick, false)
+        
+        -- Add to character select
+        characterSelect:addPlayer({
+            name = "Player " .. i,
+            controller = joystick,
+            controls = controls
+        })
+        
+        logger:info("Added player: Player %d", i)
     end
     
     -- If no controllers are connected, create a keyboard player
-    if #players == 0 then
-        local keyboardPlayer = {
+    if #controllers == 0 then
+        logger:info("No controllers connected, creating keyboard player")
+        
+        -- Create keyboard player entity
+        local color = {love.math.random(), love.math.random(), love.math.random()}
+        ecs:createPlayer(100, Constants.SCREEN_HEIGHT - Constants.PLAYER_HEIGHT - 50, color, {}, nil, false)
+        
+        -- Add to character select
+        characterSelect:addPlayer({
             name = "Keyboard Player",
             controller = nil,
-            controls = {
-                jump = "space",
-                kick = "lctrl",
-                down = "down"
-            }
-        }
-        table.insert(players, keyboardPlayer)
-        characterSelect:addPlayer(keyboardPlayer)
-        logger:info("Added keyboard player")
+            controls = {}
+        })
     end
 end
 
--- Update game state
+-- Update the game
 function love.update(dt)
     if gameState == GAME_STATES.TITLE then
-        -- Check for start button press to begin character selection
-        for _, player in ipairs(players) do
-            if player.controller and player.controller:isGamepadDown("start") then
-                gameState = GAME_STATES.CHARACTER_SELECT
-                logger:info("Entering character selection screen")
-                break
-            end
-        end
+        -- Title screen logic
     elseif gameState == GAME_STATES.CHARACTER_SELECT then
-        -- Update character selection
+        -- Character select logic
         characterSelect:update(dt)
         
         -- Check if character selection is complete
@@ -96,142 +98,132 @@ function love.update(dt)
             -- Get selected characters
             local selectedCharacters = characterSelect:getSelectedCharacters()
             
-            -- Create players with selected characters
-            game.controllers = {}  -- Clear existing controllers
-            for i, player in ipairs(players) do
-                local characterType = selectedCharacters[player]
-                local x = 100 + (i-1) * 200
-                local y = Constants.SCREEN_HEIGHT - 200
-                local color = Constants.COLORS["PLAYER" .. i] or {1, 1, 1}  -- Default to white if color not found
-                local newPlayer = game:addPlayer(x, y, color, player.controls, characterType)
-                if player.controller then
-                    newPlayer:setController(player.controller)
+            -- Apply selected characters to players
+            local playerMovementSystem = ecs.world:getSystem(PlayerMovement)
+            if playerMovementSystem then
+                for _, entity in ipairs(playerMovementSystem.pool) do
+                    local player = entity.player
+                    local controller = entity.controller
+                    
+                    -- Find the player in the character select
+                    for selectPlayer, characterType in pairs(selectedCharacters) do
+                        if selectPlayer.controller and controller.joystick and 
+                           selectPlayer.controller == controller.joystick then
+                            -- Set the character type
+                            player.characterType = characterType
+                            logger:info("Player %s assigned character: %s", player.name, characterType)
+                            break
+                        end
+                    end
                 end
-                logger:info("Created player %s with character %s", newPlayer.name, characterType)
             end
             
             -- Set game state to playing
-            game.gameState = "game"
-            
-            -- Start the game
             gameState = GAME_STATES.PLAYING
-            logger:info("Starting game with %d players", #game.controllers)
+            logger:info("Starting game")
         end
     elseif gameState == GAME_STATES.PLAYING then
-        -- Update game
-        game:update(dt)
+        -- Update game timer
+        gameTimer = gameTimer + dt
         
-        -- Check for game over
-        if game:isGameOver() then
-            gameState = GAME_STATES.GAME_OVER
-            logger:info("Game over")
+        -- Update spawn timer
+        spawnTimer = spawnTimer + dt
+        if spawnTimer >= Constants.SPAWN_INTERVAL then
+            -- Spawn a new box
+            local x = love.math.random(Constants.BOX_SPAWN_MIN_X, Constants.BOX_SPAWN_MAX_X)
+            local meaning = "Test"  -- This would be replaced with actual character data
+            local speed = love.math.random(Constants.BOX_MIN_SPEED, Constants.BOX_MAX_SPEED)
+            ecs:createBox(x, Constants.BOX_SPAWN_Y, meaning, speed)
+            
+            spawnTimer = 0
         end
         
-        -- Check for start button to return to title
-        for _, player in ipairs(players) do
-            if player.controller and player.controller:isGamepadDown("start") then
-                -- Don't allow returning to character select during gameplay
-                -- Only allow returning to title screen
-                gameState = GAME_STATES.TITLE
-                logger:info("Returning to title screen")
-                break
-            end
-        end
+        -- Update ECS
+        ecs:update(dt)
     elseif gameState == GAME_STATES.GAME_OVER then
-        -- Check for start button to return to title
-        for _, player in ipairs(players) do
-            if player.controller and player.controller:isGamepadDown("start") then
-                gameState = GAME_STATES.TITLE
-                logger:info("Returning to title screen")
-                break
-            end
-        end
+        -- Game over logic
     end
 end
 
--- Draw game state
+-- Draw the game
 function love.draw()
     if gameState == GAME_STATES.TITLE then
-        -- Draw title screen
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf("Language Arena", 0, 100, Constants.SCREEN_WIDTH, "center")
-        love.graphics.printf("Press START to begin", 0, 300, Constants.SCREEN_WIDTH, "center")
+        -- Title screen drawing
+        love.graphics.setColor(Constants.COLORS.WHITE)
+        love.graphics.print("Language Arena", Constants.SCREEN_WIDTH / 2 - 100, Constants.SCREEN_HEIGHT / 2 - 50)
+        love.graphics.print("Press A for Chinese, B for Japanese, or Start to quit", Constants.SCREEN_WIDTH / 2 - 200, Constants.SCREEN_HEIGHT / 2)
     elseif gameState == GAME_STATES.CHARACTER_SELECT then
-        -- Draw character selection screen
+        -- Character select drawing
         characterSelect:draw()
     elseif gameState == GAME_STATES.PLAYING then
-        -- Draw game
-        game:draw()
-    elseif gameState == GAME_STATES.GAME_OVER then
-        -- Draw game over screen
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf("Game Over", 0, 100, Constants.SCREEN_WIDTH, "center")
-        love.graphics.printf("Press START to return to title", 0, 300, Constants.SCREEN_WIDTH, "center")
-    end
-end
-
--- Handle controller connections/disconnections
-function love.joystickadded(joystick)
-    if joystick:isGamepad() then
-        -- Check if this joystick is already in our controllers list
-        local alreadyExists = false
-        for _, controller in ipairs(controllers) do
-            if controller == joystick then
-                alreadyExists = true
-                break
-            end
-        end
+        -- Draw ECS
+        ecs:draw()
         
-        -- Only add if it's not already in our list
-        if not alreadyExists then
-            table.insert(controllers, joystick)
-            logger:info("Controller connected: %s", joystick:getName())
-            
-            -- Add player for new controller
-            local player = {
-                name = "Player " .. (#players + 1),
-                controller = joystick,
-                controls = {
-                    jump = "a",
-                    kick = "b",
-                    down = "dpdown"
-                }
-            }
-            table.insert(players, player)
-            characterSelect:addPlayer(player)
-            logger:info("Added player: %s", player.name)
+        -- Draw game timer
+        love.graphics.setColor(Constants.COLORS.WHITE)
+        love.graphics.print("Time: " .. math.floor(gameTimer), Constants.SCREEN_WIDTH - 200, 10)
+    elseif gameState == GAME_STATES.GAME_OVER then
+        -- Game over drawing
+        love.graphics.setColor(Constants.COLORS.WHITE)
+        love.graphics.print("Game Over", Constants.SCREEN_WIDTH / 2 - 100, Constants.SCREEN_HEIGHT / 2 - 50)
+        love.graphics.print("Press Start to return to title", Constants.SCREEN_WIDTH / 2 - 150, Constants.SCREEN_HEIGHT / 2)
+    end
+end
+
+-- Handle key presses
+function love.keypressed(key)
+    if gameState == GAME_STATES.TITLE then
+        if key == "escape" then
+            love.event.quit()
+        end
+    elseif gameState == GAME_STATES.PLAYING then
+        if key == "escape" then
+            gameState = GAME_STATES.TITLE
+        end
+    elseif gameState == GAME_STATES.GAME_OVER then
+        if key == "escape" then
+            gameState = GAME_STATES.TITLE
         end
     end
 end
 
-function love.joystickremoved(joystick)
-    for i, controller in ipairs(controllers) do
-        if controller == joystick then
-            table.remove(controllers, i)
-            logger:info("Controller disconnected: %s", joystick:getName())
-            
-            -- Remove player for disconnected controller
-            for j, player in ipairs(players) do
-                if player.controller == joystick then
-                    table.remove(players, j)
-                    logger:info("Removed player: %s", player.name)
+-- Handle gamepad button presses
+function love.gamepadpressed(joystick, button)
+    if gameState == GAME_STATES.TITLE then
+        if button == "a" then
+            gameState = GAME_STATES.CHARACTER_SELECT
+        elseif button == "b" then
+            gameState = GAME_STATES.CHARACTER_SELECT
+        elseif button == "start" then
+            love.event.quit()
+        end
+    elseif gameState == GAME_STATES.CHARACTER_SELECT then
+        -- Character select already handles button presses in its update method
+        -- No need to call a separate method
+    elseif gameState == GAME_STATES.PLAYING then
+        -- Find the player with this controller and pass the button press
+        local playerMovementSystem = ecs.world:getSystem(PlayerMovement)
+        if playerMovementSystem then
+            for _, entity in ipairs(playerMovementSystem.pool) do
+                if entity.controller and entity.controller.joystick == joystick then
+                    -- Handle button press
+                    if button == "start" then
+                        gameState = GAME_STATES.TITLE
+                    end
                     break
                 end
             end
-            break
+        end
+    elseif gameState == GAME_STATES.GAME_OVER then
+        if button == "start" then
+            gameState = GAME_STATES.TITLE
         end
     end
 end
 
--- Handle keyboard input for title screen
-function love.keypressed(key)
-    if gameState == GAME_STATES.TITLE and key == "return" then
-        gameState = GAME_STATES.CHARACTER_SELECT
-        logger:info("Moving to character selection screen")
-    elseif gameState == GAME_STATES.GAME_OVER and key == "return" then
-        gameState = GAME_STATES.TITLE
-        logger:info("Returning to title screen")
-    end
+-- Handle gamepad button releases
+function love.gamepadreleased(joystick, button)
+    -- Handle button releases if needed
 end
 
 function love.resize(w, h)
@@ -252,8 +244,8 @@ end
 
 function love.quit()
     logger:info("Game shutting down")
-    if game then
-        game:cleanup()
+    if ecs then
+        ecs:cleanup()
     end
     logger:close()  -- Close the log file
 end 
