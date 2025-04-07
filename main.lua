@@ -56,7 +56,7 @@ function love.load()
         
         -- Create player entity
         local color = {love.math.random(), love.math.random(), love.math.random()}
-        ecs:createPlayer(100 + (i-1) * 200, Constants.PLAYER_HEIGHT + 50, color, controls, joystick, false)
+        ecs:createPlayer(100 + (i-1) * 200, Constants.GROUND_Y - Constants.PLAYER_HEIGHT, color, controls, joystick, false)
         
         -- Add to character select
         characterSelect:addPlayer({
@@ -74,7 +74,7 @@ function love.load()
         
         -- Create keyboard player entity
         local color = {love.math.random(), love.math.random(), love.math.random()}
-        ecs:createPlayer(100, Constants.SCREEN_HEIGHT - Constants.PLAYER_HEIGHT - 50, color, {}, nil, false)
+        ecs:createPlayer(100, Constants.GROUND_Y - Constants.PLAYER_HEIGHT, color, {}, nil, false)
         
         -- Add to character select
         characterSelect:addPlayer({

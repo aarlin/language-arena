@@ -8,7 +8,7 @@ Constants.CHARACTER_CHANGE_MAX_TIME = 25  -- Maximum time between character chan
 Constants.SPAWN_INTERVAL = 2  -- Time between box spawns
 Constants.SCREEN_WIDTH = love._console == "Switch" and 1280 or 1920  -- Game screen width
 Constants.SCREEN_HEIGHT = love._console == "Switch" and 720 or 1080  -- Game screen height
-Constants.GROUND_Y = 100  -- Y position of the ground
+Constants.GROUND_Y = Constants.SCREEN_HEIGHT - 50  -- Y position of the ground (100 pixels from bottom)
 
 -- Player settings
 Constants.PLAYER_SPEED = 300  -- Base movement speed
