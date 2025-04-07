@@ -39,6 +39,7 @@ function love.load()
     
     -- Set up controllers
     for i, joystick in ipairs(love.joystick.getJoysticks()) do
+        -- Skip the built-in joycon controller on Nintendo Switch
         if joystick:isGamepad() then
             table.insert(controllers, joystick)
             logger:info("Controller %d connected: %s", i, joystick:getName())
@@ -49,7 +50,7 @@ function love.load()
     for i, joystick in ipairs(controllers) do
         local controls = {
             controller = i,
-            left = "leftx",  -- Use appropriate stick for movement
+            left = "leftx",  -- Use proper gamepad axis name
             jump = "a",      -- A button on Switch
             down = "b",      -- B button on Switch (now used for running)
             kick = "leftshoulder",     -- X button on Switch

@@ -180,6 +180,7 @@ function Rendering:draw()
                     local leftY = controller.joystick:getAxis(2)  -- Left stick Y
                     local rightX = controller.joystick:getAxis(3)  -- Right stick X
                     local rightY = controller.joystick:getAxis(4)  -- Right stick Y
+
                     
                     -- Print player name and joystick values
                     love.graphics.print(string.format("Player %d: %s", i, player.name), 10, debugY)

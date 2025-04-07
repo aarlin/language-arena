@@ -146,7 +146,7 @@ function ECS:createBox(x, y, meaning, speed, characterType, isPoop)
     -- Determine image path based on character type or if it's a poop
     local imagePath = ""
     if isPoop then
-        imagePath = "assets/falling-objects/poop.jpg"
+        imagePath = "assets/falling-objects/poop.png"
     elseif characterType and characterType ~= "" then
         imagePath = "assets/falling-objects/" .. characterType .. ".png"
     end

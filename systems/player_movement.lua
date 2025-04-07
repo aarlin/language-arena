@@ -49,61 +49,59 @@ function PlayerMovement:update(dt)
             
             -- Skip if box is already collected
             if box.collected then
-                goto continue
-            end
-            
-            -- Check for collision
-            if not (position.x + dimensions.width < boxPosition.x or 
-                   position.x > boxPosition.x + boxDimensions.width or 
-                   position.y + dimensions.height < boxPosition.y or 
-                   position.y > boxPosition.y + boxDimensions.height) then
-                
-                -- Mark box as collected
-                box.collected = true
-                
-                -- Handle poop collision (apply knockback)
-                if box.isPoop then
-                    player.isKnockback = true
-                    player.knockbackTimer = Constants.KNOCKBACK_DURATION
-                    player.isImmobile = true
-                    player.immobilityTimer = Constants.KNOCKBACK_DURATION
+                -- Skip to next box (guard clause)
+            else
+                -- Check for collision
+                if not (position.x + dimensions.width < boxPosition.x or 
+                       position.x > boxPosition.x + boxDimensions.width or 
+                       position.y + dimensions.height < boxPosition.y or 
+                       position.y > boxPosition.y + boxDimensions.height) then
                     
-                    -- Set knockback direction based on player position relative to box
-                    if position.x < boxPosition.x then
-                        player.knockbackDirectionX = -1  -- Knock back left
+                    -- Mark box as collected
+                    box.collected = true
+                    
+                    -- Handle poop collision (apply knockback)
+                    if box.isPoop then
+                        player.isKnockback = true
+                        player.knockbackTimer = Constants.KNOCKBACK_DURATION
+                        player.isImmobile = true
+                        player.immobilityTimer = Constants.KNOCKBACK_DURATION
+                        
+                        -- Set knockback direction based on player position relative to box
+                        if position.x < boxPosition.x then
+                            player.knockbackDirectionX = -1  -- Knock back left
+                        else
+                            player.knockbackDirectionX = 1   -- Knock back right
+                        end
+                        player.knockbackDirectionY = -1  -- Knock back up
+                        
+                        -- Update animation
+                        if entity.animation then
+                            entity.animation.currentAnimation = "ko"
+                            entity.animation.currentFrame = 1
+                        end
+                        
+                        -- Log the collision
+                        logger:info("Player %s hit poop, applying knockback for %f seconds", player.name, Constants.KNOCKBACK_DURATION)
                     else
-                        player.knockbackDirectionX = 1   -- Knock back right
+                        -- Check if character type matches player's character type
+                        if box.characterType == player.characterType then
+                            -- Award points for matching character
+                            player.score = (player.score or 0) + Constants.CORRECT_MATCH_SCORE
+                            logger:info("Player %s collected matching character: %s, +%d points", 
+                                player.name, box.characterType, Constants.CORRECT_MATCH_SCORE)
+                        else
+                            -- Wrong match, subtract points
+                            player.score = math.max(0, (player.score or 0) - Constants.WRONG_MATCH_PENALTY)
+                            logger:info("Player %s collected wrong character: %s, -%d points", 
+                                player.name, box.characterType, Constants.WRONG_MATCH_PENALTY)
+                        end
                     end
-                    player.knockbackDirectionY = -1  -- Knock back up
                     
-                    -- Update animation
-                    if entity.animation then
-                        entity.animation.currentAnimation = "ko"
-                        entity.animation.currentFrame = 1
-                    end
-                    
-                    -- Log the collision
-                    logger:info("Player %s hit poop, applying knockback for %f seconds", player.name, Constants.KNOCKBACK_DURATION)
-                else
-                    -- Check if character type matches player's character type
-                    if box.characterType == player.characterType then
-                        -- Award points for matching character
-                        player.score = (player.score or 0) + Constants.CORRECT_MATCH_SCORE
-                        logger:info("Player %s collected matching character: %s, +%d points", 
-                            player.name, box.characterType, Constants.CORRECT_MATCH_SCORE)
-                    else
-                        -- Wrong match, subtract points
-                        player.score = math.max(0, (player.score or 0) - Constants.WRONG_MATCH_PENALTY)
-                        logger:info("Player %s collected wrong character: %s, -%d points", 
-                            player.name, box.characterType, Constants.WRONG_MATCH_PENALTY)
-                    end
+                    -- Destroy the box entity
+                    boxEntity:destroy()
                 end
-                
-                -- Destroy the box entity
-                boxEntity:destroy()
             end
-            
-            ::continue::
         end
         
         -- Update timers (these should always run regardless of immobility)
@@ -185,15 +183,16 @@ function PlayerMovement:update(dt)
                         -- Check if the control is a number (axis index) or a string (axis name)
                         if type(player.controls.left) == "number" then
                             moveX = controller.joystick:getAxis(player.controls.left)
+                            
+                            -- For Nintendo Switch, we need to handle the axis differently
                         else
-                            -- If it's a string, try to use it as an axis name
-                            -- For now, default to axis 1 (leftx) if it's a string
-                            moveX = controller.joystick:getAxis(1)
-                            logger:debug("Using default axis 1 for player %s (control: %s)", player.name, player.controls.left)
+                            -- If it's a string, use it as a gamepad axis name
+                            moveX = controller.joystick:getGamepadAxis(player.controls.left)
+                            logger:debug("Using gamepad axis %s for player %s", player.controls.left, player.name)
                         end
                     else
-                        -- Fallback to default axis 1 (leftx)
-                        moveX = controller.joystick:getAxis(1)
+                        -- Fallback to default gamepad axis "leftx"
+                        moveX = controller.joystick:getGamepadAxis("leftx")
                     end
                     
                     if math.abs(moveX) > 0.1 then
