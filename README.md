@@ -74,6 +74,21 @@ This game is built using:
 - `player.lua`: Player mechanics
 - `characters.lua`: Character data
 
+## Libraries 
+
+1. rxi  
+    a. flux  
+    b. log  
+    c. tick  
+2. concord  
+3. baton  
+
+To be added  
+
+1. urotora  
+2. hump  
+3. anim8
+
 ## License
 
 This project is open source and available under the MIT License.

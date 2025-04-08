@@ -10,6 +10,7 @@ local Player = require("components.player")
 local Box = require("components.box")
 local Controller = require("components.controller")
 local Animation = require("components.animation")
+local PlayerControls = require("components.player_controls")
 
 -- Import systems
 local PlayerMovement = require("systems.player_movement")
@@ -37,7 +38,10 @@ function ECS:init()
     self:registerComponents()
     
     -- Create a new world
-    self.world = Concord.world.new()
+    self.world = Concord.world()
+    if not self.world then
+        error("Failed to create Concord world")
+    end
     
     -- Register all systems
     self:registerSystems()
@@ -45,6 +49,7 @@ function ECS:init()
     -- Create initial entities
     self:createInitialEntities()
     
+    -- Return self to allow method chaining
     return self
 end
 
@@ -71,6 +76,7 @@ function ECS:registerComponents()
     safeRegister("box", Box)
     safeRegister("controller", Controller)
     safeRegister("animation", Animation)
+    safeRegister("player_controls", PlayerControls)
 end
 
 -- Register all systems
@@ -121,40 +127,66 @@ end
 
 -- Create a player entity
 function ECS:createPlayer(x, y, color, controls, joystick, isBot)
-    local entity = self:createEntity()
-    
-    -- Add components
-    entity:give("position", x, y)
-    entity:give("velocity", 0, 0)
-    entity:give("dimensions", Constants.PLAYER_WIDTH, Constants.PLAYER_HEIGHT)
-    entity:give("player", "Player", color, controls)
-    entity:give("controller", joystick, isBot)
-    entity:give("animation", "idle", 1, 0)
-    
-    -- Set default character type if not specified
-    if not entity.player.characterType then
-        entity.player.characterType = "raccoon"  -- Default character
-    end
+    local entity = self.world:newEntity()
+        :give("player", {
+            name = "Player",
+            score = 0,
+            characterType = "default",
+            speed = Constants.PLAYER_SPEED,
+            runSpeed = Constants.PLAYER_RUN_SPEED,
+            jumpForce = Constants.PLAYER_JUMP_FORCE,
+            gravity = Constants.PLAYER_GRAVITY,
+            isJumping = false,
+            isRunning = false,
+            isKicking = false,
+            isKnockback = false,
+            isInvulnerable = false,
+            isImmobile = false,
+            facingRight = true,
+            kickTimer = 0,
+            knockbackTimer = 0,
+            invulnerabilityTimer = 0,
+            immobilityTimer = 0
+        })
+        :give("position", {
+            x = x,
+            y = y
+        })
+        :give("velocity", {x = 0, y = 0})
+        :give("dimensions", {
+            width = Constants.PLAYER_WIDTH,
+            height = Constants.PLAYER_HEIGHT
+        })
+        :give("player_controls")
+        :give("animation", {
+            currentAnimation = "idle",
+            currentFrame = 1,
+            frameTimer = 0
+        })
     
     return entity
 end
 
 -- Create a box entity
-function ECS:createBox(x, y, meaning, speed, characterType, isPoop)
-    local entity = self:createEntity()
-    
-    -- Determine image path based on character type or if it's a poop
-    local imagePath = ""
-    if isPoop then
-        imagePath = "assets/falling-objects/poop.png"
-    elseif characterType and characterType ~= "" then
-        imagePath = "assets/falling-objects/" .. characterType .. ".png"
-    end
-    
-    -- Add components
-    entity:give("position", x, y)
-    entity:give("dimensions", Constants.BOX_WIDTH, Constants.BOX_HEIGHT)
-    entity:give("box", meaning, speed, characterType, imagePath, isPoop)
+function ECS:createBox(x, y, character, speed, meaning, isPoop)
+    local entity = self.world:entity()
+        :give("box", {
+            character = character,
+            meaning = meaning,
+            isPoop = isPoop
+        })
+        :give("position", {
+            x = x,
+            y = y
+        })
+        :give("velocity", {
+            x = 0,
+            y = speed
+        })
+        :give("dimensions", {
+            width = Constants.BOX_WIDTH,
+            height = Constants.BOX_HEIGHT
+        })
     
     return entity
 end

@@ -1,104 +1,58 @@
 -- Logger module for Language Arena
 -- Provides logging functionality for debugging
 
-local config = require("config")
+local logger = {
+    logFile = nil,
+    logPath = "game.log"
+}
 
-local logger = {}
-
--- Initialize the logger with config settings
-function logger:init(loggingConfig)
-    if not loggingConfig then
-        loggingConfig = config.logging
+function logger:init()
+    -- Try to open the log file in append mode
+    local success, file = pcall(function()
+        return io.open(self.logPath, "a")
+    end)
+    
+    if success and file then
+        self.logFile = file
+        self:info("Logger initialized")
+    else
+        -- If we can't write to the file, just print to console
+        print("Warning: Could not open log file, falling back to console output")
+        self.logFile = false -- Use false to indicate console-only mode
     end
-    self.config = loggingConfig
-    logger:info("Logger initialized")
 end
 
--- Internal function to check if logging is enabled for a specific level and event type
-local function shouldLog(level, eventType)
-    if not logger.config.enabled then return false end
-    if not logger.config.levels[level] then return false end
-    if eventType and not logger.config.events[eventType] then return false end
-    return true
-end
-
--- Format the current time for log messages
-local function getTimeStamp()
-    return os.date("%Y-%m-%d %H:%M:%S")
-end
-
--- Base logging function
-local function log(level, message, ...)
-    if not shouldLog(level) then return end
-    local timestamp = getTimeStamp()
+function logger:log(level, message, ...)
+    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     local formattedMessage = string.format(message, ...)
-    print(string.format("[%s][%s] %s", timestamp, level:upper(), formattedMessage))
+    local logEntry = string.format("[%s] [%s] %s", timestamp, level, formattedMessage)
+    
+    -- Always print to console
+    print(logEntry)
+    
+    -- If we have a file, write to it too
+    if self.logFile and self.logFile ~= false then
+        self.logFile:write(logEntry .. "\n")
+        self.logFile:flush()
+    end
 end
 
--- Public logging functions
 function logger:info(message, ...)
-    log("info", message, ...)
-end
-
-function logger:debug(message, ...)
-    log("debug", message, ...)
-end
-
-function logger:warning(message, ...)
-    log("warning", message, ...)
+    self:log("INFO", message, ...)
 end
 
 function logger:error(message, ...)
-    log("error", message, ...)
+    self:log("ERROR", message, ...)
 end
 
--- Specialized logging functions for specific event types
-function logger:logPlayerState(player)
-    if not shouldLog("debug", "playerMovement") then return end
-    log("debug", "Player %s state - Pos: (%.2f, %.2f), Vel: (%.2f, %.2f), Animation: %s",
-        player.name, player.x, player.y, player.velocity.x, player.velocity.y, player.currentAnimation)
-end
-
-function logger:logGameState(game)
-    if not shouldLog("debug", "stateChanges") then return end
-    log("debug", "Game state - Timer: %.2f, Players: %d, Boxes: %d",
-        game.gameTimer, #game.controllers, #game.boxes)
-end
-
-function logger:logCollision(player, box, collision)
-    if not shouldLog("debug", "collisions") then return end
-    log("debug", "Collision check - Player: %s, Box: %s, Collided: %s",
-        player.name, box.meaning, tostring(collision))
-end
-
-function logger:logCombatEvent(attacker, target, action, result)
-    if not shouldLog("info", "combat") then return end
-    log("info", "Combat - %s %s %s (Result: %s)",
-        attacker.name, action, target.name, result)
-end
-
-function logger:logCharacterCollection(player, character)
-    if not shouldLog("info", "characterCollection") then return end
-    log("info", "Collection - Player %s collected character %s",
-        player.name, character.meaning)
-end
-
-function logger:logAnimationChange(player, oldAnim, newAnim)
-    if not shouldLog("debug", "animations") then return end
-    log("debug", "Animation - Player %s changed from %s to %s",
-        player.name, oldAnim, newAnim)
-end
-
-function logger:logInput(player, input, value)
-    if not shouldLog("debug", "input") then return end
-    log("debug", "Input - Player %s: %s = %s",
-        player.name, input, tostring(value))
-end
-
--- Add close function to handle cleanup
 function logger:close()
-    -- Currently just a placeholder for future cleanup if needed
-    logger:info("Logger closing")
+    if self.logFile and self.logFile ~= false then
+        self.logFile:close()
+        self.logFile = nil
+    end
 end
+
+-- Initialize the logger
+logger:init()
 
 return logger 
