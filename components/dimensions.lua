@@ -1,5 +1,5 @@
 -- Dimensions component
-local Concord = require("lib.concord.init")
+local Concord = require("lib.concord")
 
 local Dimensions = Concord.component("dimensions", function(c, width, height)
     c.width = width or 100

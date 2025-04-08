@@ -1,5 +1,5 @@
 -- Rendering System
-local Concord = require("lib.concord.init")
+local Concord = require("lib.concord")
 local Constants = require("constants")
 local config = require("config")
 local logger = require("logger")

@@ -1,5 +1,5 @@
 -- Animation component
-local Concord = require("lib.concord.init")
+local Concord = require("lib.concord")
 
 local Animation = Concord.component("animation", function(c, currentAnimation, currentFrame, animationTimer)
     c.currentAnimation = currentAnimation or "idle"

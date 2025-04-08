@@ -1,5 +1,5 @@
 -- Component definitions
-local Concord = require("lib.concord.init")
+local Concord = require("lib.concord")
 
 -- Position component
 local Position = Concord.component("position", function(self, x, y)

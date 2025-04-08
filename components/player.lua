@@ -1,5 +1,5 @@
 -- Player component
-local Concord = require("lib.concord.init")
+local Concord = require("lib.concord")
 local Constants = require("constants")
 
 local Player = Concord.component("player", function(c, name, color, controls)

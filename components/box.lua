@@ -1,5 +1,5 @@
 -- Box component
-local Concord = require("lib.concord.init")
+local Concord = require("lib.concord")
 local Constants = require("constants")
 
 local Box = Concord.component("box", function(c, meaning, speed, characterType, imagePath, isPoop)

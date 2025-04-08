@@ -1,5 +1,5 @@
 -- ECS (Entity Component System) setup using Concord
-local Concord = require("lib.concord.init")
+local Concord = require("lib.concord")
 local Constants = require("constants")
 
 -- Import components
@@ -31,7 +31,7 @@ local ECS = {
 function ECS:init()
     -- Check if Concord is properly loaded
     if not Concord or not Concord.world then
-        error("Concord library not properly loaded. Check the path to lib.concord.init")
+        error("Concord library not properly loaded. Check the path to lib.concord")
     end
     
     -- Register components with Concord

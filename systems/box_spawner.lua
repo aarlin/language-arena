@@ -1,5 +1,5 @@
 -- Box Spawner System
-local Concord = require("lib.concord.init")
+local Concord = require("lib.concord")
 local Constants = require("constants")
 local logger = require("logger")
 local Orbs = require("orbs")
