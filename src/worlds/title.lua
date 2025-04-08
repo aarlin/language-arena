@@ -11,7 +11,7 @@ function Title:emit(event, ...)
         local dt = ...
         -- Check for keyboard input
         if love.keyboard.isDown("return") or love.keyboard.isDown("space") then
-            CurrentWorld = require("src.worlds.character_select")
+            CurrentWorld = require("src.worlds.characterSelect")
         end
         
         -- Check for gamepad input
@@ -19,7 +19,7 @@ function Title:emit(event, ...)
         if #joysticks > 0 then
             local joystick = joysticks[1]
             if joystick:isGamepadDown("start") or joystick:isGamepadDown("a") then
-                CurrentWorld = require("src.worlds.character_select")
+                CurrentWorld = require("src.worlds.characterSelect")
             end
         end
     elseif event == "draw" then
@@ -32,9 +32,38 @@ function Title:emit(event, ...)
     elseif event == "gamepadpressed" then
         local joystick, button = ...
         if button == "start" or button == "a" then
-            CurrentWorld = require("src.worlds.character_select")
+            CurrentWorld = require("src.worlds.characterSelect")
         end
     end
+end
+
+function Title:load()
+    logger:info("Loading title screen")
+end
+
+function Title:update(dt)
+    -- Check for keyboard input
+    if love.keyboard.isDown("return") or love.keyboard.isDown("space") then
+        CurrentWorld = require("src.worlds.characterSelect")
+    end
+    
+    -- Check for gamepad input
+    local joysticks = love.joystick.getJoysticks()
+    if #joysticks > 0 then
+        local joystick = joysticks[1]
+        if joystick:isGamepadDown("start") or joystick:isGamepadDown("a") then
+            CurrentWorld = require("src.worlds.characterSelect")
+        end
+    end
+end
+
+function Title:draw()
+    -- Draw title screen
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.printf("Language Arena", 
+        0, Constants.SCREEN_HEIGHT / 3, Constants.SCREEN_WIDTH, "center")
+    love.graphics.printf("Press Enter or Start to Begin",
+        0, Constants.SCREEN_HEIGHT / 2, Constants.SCREEN_WIDTH, "center")
 end
 
 return Title 
