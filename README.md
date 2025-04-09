@@ -1,5 +1,7 @@
 # Language Arena
 
+![](./assets/screenshots/gameplay.png)
+
 A multiplayer language learning game built with LÖVE and LÖVE Potion, playable on PC and Nintendo Switch.
 
 ## Description
