@@ -1,12 +1,12 @@
 -- Import required modules
-local ECS = require("ecs")
-local CharacterSelect = require("character_select")
+local ECS = require("src.ecs")
+local CharacterSelect = require("src.worlds.character_select")
 local logger = require("logger")
 local Constants = require("constants")
 local config = require("config")
-local PlayerMovement = require("systems.player_movement")  -- Import the PlayerMovement system
-local Players = require("players")  -- Import the Players module
-local Orbs = require("orbs")  -- Import the Orbs module
+local PlayerMovement = require("src.systems.player_movement")  -- Import the PlayerMovement system
+local Players = require("src.components.players")  -- Import the Players module
+local Orbs = require("src.components.orbs")  -- Import the Orbs module
 
 -- Game states
 local GAME_STATES = {

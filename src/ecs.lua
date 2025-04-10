@@ -12,11 +12,11 @@ local Controller = require("components.controller")
 local Animation = require("components.animation")
 
 -- Import systems
-local PlayerMovement = require("systems.player_movement")
-local BoxMovement = require("systems.box_movement")
-local Collision = require("systems.collision")
-local PlayerCombat = require("systems.player_combat")
-local Rendering = require("systems.rendering")
+local PlayerMovement = require("src.systems.player_movement")
+local BoxMovement = require("src.systems.box_movement")
+local Collision = require("src.systems.collision")
+local PlayerCombat = require("src.systems.player_combat")
+local Rendering = require("src.systems.rendering")
 
 -- Create the ECS world
 local ECS = {
