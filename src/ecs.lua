@@ -10,6 +10,7 @@ local Player = require("src.components.basePlayer")
 local Box = require("src.components.box")
 local Controller = require("src.components.controller")
 local Animation = require("src.components.animation")
+local Platform = require("src.components.platform")
 
 -- Import systems
 local PlayerMovement = require("src.systems.player_movement")
@@ -17,6 +18,9 @@ local BoxMovement = require("src.systems.box_movement")
 local Collision = require("src.systems.collision")
 local PlayerCombat = require("src.systems.player_combat")
 local Rendering = require("src.systems.rendering")
+local PlatformManager = require("src.systems.platform_manager")
+local PlatformRender = require("src.systems.platform_render")
+local PlatformCollision = require("src.systems.platform_collision")
 
 -- Create the ECS world
 local ECS = {
@@ -71,16 +75,20 @@ function ECS:registerComponents()
     safeRegister("box", Box)
     safeRegister("controller", Controller)
     safeRegister("animation", Animation)
+    safeRegister("platform", Platform)
 end
 
 -- Register all systems
 function ECS:registerSystems()
     -- Register systems in the order they should be executed
+    self.world:addSystem(PlatformManager)
     self.world:addSystem(PlayerMovement)
     self.world:addSystem(BoxMovement)
+    self.world:addSystem(PlatformCollision)
     self.world:addSystem(Collision)
     self.world:addSystem(PlayerCombat)
     self.world:addSystem(Rendering)
+    self.world:addSystem(PlatformRender)
 end
 
 -- Create initial entities

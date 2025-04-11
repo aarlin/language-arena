@@ -5,7 +5,8 @@ local logger = require("logger")
 
 local PlayerMovement = Concord.system({
     players = {"player", "position", "velocity", "dimensions", "controller"},
-    boxes = {"box", "position", "dimensions"}
+    boxes = {"box", "position", "dimensions"},
+    platforms = {"platform", "position", "dimensions"}
 })
 
 function PlayerMovement:update(dt)
@@ -38,6 +39,36 @@ function PlayerMovement:update(dt)
                 player.isKnockback = false
                 player.isInvulnerable = true
                 player.invulnerabilityTimer = Constants.INVULNERABILITY_DURATION
+            end
+        end
+        
+        -- Check for collisions with platforms
+        local onPlatform = false
+        for _, platformEntity in ipairs(self.platforms) do
+            local platform = platformEntity.platform
+            local platformPosition = platformEntity.position
+            local platformDimensions = platformEntity.dimensions
+            
+            -- Check if player is above platform and moving downward
+            if velocity.y > 0 and
+               position.x + dimensions.width > platformPosition.x and
+               position.x < platformPosition.x + platformDimensions.width and
+               position.y + dimensions.height <= platformPosition.y and
+               position.y + dimensions.height + velocity.y * dt > platformPosition.y then
+                
+                -- Land on platform
+                position.y = platformPosition.y - dimensions.height
+                velocity.y = 0
+                player.isJumping = false
+                onPlatform = true
+                
+                -- Handle bouncy platforms
+                if platform.isBouncy then
+                    velocity.y = -platform.bounceForce
+                    player.isJumping = true
+                end
+                
+                break
             end
         end
         
@@ -219,8 +250,8 @@ function PlayerMovement:update(dt)
                         velocity.x = 0
                     end
                     
-                    -- Jumping
-                    if player.controls.jump and controller.joystick:isGamepadDown(player.controls.jump) and not player.isJumping then
+                    -- Jumping (only if on ground or platform)
+                    if player.controls.jump and controller.joystick:isGamepadDown(player.controls.jump) and (not player.isJumping or onPlatform) then
                         velocity.y = -player.jumpForce
                         player.isJumping = true
                         logger:debug("Player %s jumped", player.name)
@@ -234,8 +265,8 @@ function PlayerMovement:update(dt)
                     logger:debug("Player %s kicked", player.name)
                 end
                 
-                -- Apply gravity
-                if player.isJumping then
+                -- Apply gravity if not on platform
+                if not onPlatform then
                     velocity.y = velocity.y + player.gravity * dt
                 end
                 
