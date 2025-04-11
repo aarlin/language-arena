@@ -3,13 +3,13 @@ local Concord = require("lib.concord.init")
 local Constants = require("constants")
 
 -- Import components
-local Position = require("components.position")
-local Velocity = require("components.velocity")
-local Dimensions = require("components.dimensions")
-local Player = require("components.player")
-local Box = require("components.box")
-local Controller = require("components.controller")
-local Animation = require("components.animation")
+local Position = require("src.components.position")
+local Velocity = require("src.components.velocity")
+local Dimensions = require("src.components.dimensions")
+local Player = require("src.components.basePlayer")
+local Box = require("src.components.box")
+local Controller = require("src.components.controller")
+local Animation = require("src.components.animation")
 
 -- Import systems
 local PlayerMovement = require("src.systems.player_movement")
