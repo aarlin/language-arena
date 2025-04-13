@@ -9,12 +9,19 @@ Constants.SPAWN_INTERVAL = 2  -- Time between box spawns
 Constants.SCREEN_WIDTH = love._console == "Switch" and 1280 or 1920  -- Game screen width
 Constants.SCREEN_HEIGHT = love._console == "Switch" and 720 or 1080  -- Game screen height
 Constants.GROUND_Y = Constants.SCREEN_HEIGHT - 50  -- Y position of the ground (100 pixels from bottom)
+Constants.GRAVITY = 1000  -- Gravity force
 
 -- Player settings
 Constants.PLAYER_SPEED = 300  -- Base movement speed
 Constants.PLAYER_RUN_SPEED = 600  -- Running speed
 Constants.PLAYER_JUMP_FORCE = 500  -- Jump force
 Constants.PLAYER_GRAVITY = 1000  -- Gravity force
+Constants.AIR_DODGE_FORCE = 1200  -- Increased force applied during air dodge
+Constants.AIR_DODGE_DURATION = 0.3  -- Shorter duration for sharper dodge
+Constants.AIR_DODGE_COOLDOWN = 0.5  -- Cooldown between air dodges
+Constants.AIR_DODGE_FLASH_SPEED = 0.05  -- Speed of flash effect during air dodge
+Constants.WAVE_DASH_FORCE = 500  -- Force applied during wave dash
+Constants.WAVE_LAND_FORCE = 300  -- Force applied during wave land
 Constants.PLAYER_WIDTH = 100  -- Player width (reduced from 415)
 Constants.PLAYER_HEIGHT = 100  -- Player height (reduced from 532)
 Constants.PLAYER_INVULNERABILITY_DURATION = 2  -- Seconds of invulnerability after being hit

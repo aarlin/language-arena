@@ -180,13 +180,14 @@ function Game:setupControllers()
                 {love.math.random(), love.math.random(), love.math.random()},
                 {
                     controller = i,
-                    left = "leftx",  -- Use appropriate stick for movement
-                    right = "rightx",  -- Use appropriate stick for movement
-                    jump = "a",      -- A button on Switch
-                    down = "b",      -- B button on Switch (now used for running)
-                    kick = "leftshoulder",     -- X button on Switch
-                    start = "start", -- Plus button on Switch
-                    back = "back"    -- Minus button on Switch
+                    left = "dpleft",  -- Use D-pad left for movement
+                    right = "dpright",  -- Use D-pad right for movement
+                    jump = "a",      -- A button for jumping
+                    down = "dpdown",  -- D-pad down for crouching
+                    run = "b",       -- B button for running
+                    kick = "leftshoulder",     -- Left shoulder for kicking
+                    start = "start", -- Start button
+                    back = "back"    -- Back button
                 }
             )
             player:setController(joystick)
@@ -474,14 +475,9 @@ function Game:draw()
     love.graphics.setColor(Constants.COLORS.WHITE)
     if self.gameState == "title" then
         love.graphics.draw(self.titleBackground, 0, 0)
-    else
-        love.graphics.draw(self.gameBackground, 0, 0)
-    end
-    
-    -- Draw based on game state
-    if self.gameState == "title" then
         self:drawTitle()
     elseif self.gameState == "game" then
+        love.graphics.draw(self.gameBackground, 0, 0)
         -- Draw boxes
         for _, box in ipairs(self.boxes) do
             if box.useCircle then
@@ -506,9 +502,11 @@ function Game:draw()
             controller.player:draw()
         end
     elseif self.gameState == "gameover" then
+        love.graphics.draw(self.titleBackground, 0, 0)
         self:drawGameOver()
     elseif self.gameState == "characterSelection" then
-        self:drawCharacterSelection()
+        love.graphics.draw(self.titleBackground, 0, 0)
+        self:drawCharacterGrid()
     end
     
     -- Draw debug info if enabled
@@ -1016,6 +1014,10 @@ function Game:checkCollision(a, b)
 end
 
 function Game:drawCharacterGrid()
+    -- Draw background
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.draw(self.titleBackground, 0, 0)
+    
     -- Grid settings for 1920x1080 resolution
     local gridX = Constants.GRID_START_X  -- Center of the grid
     local gridY = Constants.GRID_START_Y  -- Moved down to be below other text
@@ -1023,6 +1025,10 @@ function Game:drawCharacterGrid()
     local cellsPerRow = Constants.GRID_CELLS_PER_ROW  -- 8x8 grid
     local startX = gridX - (cellSize * cellsPerRow) / 2
     local startY = gridY - (cellSize * cellsPerRow) / 2
+    
+    -- Draw semi-transparent overlay for better text visibility
+    love.graphics.setColor(0, 0, 0, 0.5)
+    love.graphics.rectangle("fill", 0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT)
     
     -- Draw grid title
     love.graphics.setColor(Constants.COLORS.WHITE)

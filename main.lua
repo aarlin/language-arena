@@ -226,8 +226,8 @@ function love.gamepadpressed(joystick, button)
     elseif gameState == GAME_STATES.PLAYING then
         -- Find the player with this controller and pass the button press
         local playerMovementSystem = ecs.world:getSystem(PlayerMovement)
-        if playerMovementSystem then
-            for _, entity in ipairs(playerMovementSystem.players) do
+        if playerMovementSystem and playerMovementSystem.pool then
+            for _, entity in ipairs(playerMovementSystem.pool) do
                 if entity.controller and entity.controller.joystick == joystick then
                     -- Handle button press
                     if button == "start" then

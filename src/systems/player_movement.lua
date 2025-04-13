@@ -4,13 +4,17 @@ local Constants = require("constants")
 local logger = require("logger")
 
 local PlayerMovement = Concord.system({
-    players = {"player", "position", "velocity", "dimensions", "controller"},
+    pool = {"player", "position", "velocity", "dimensions", "controller"},
     boxes = {"box", "position", "dimensions"},
     platforms = {"platform", "position", "dimensions"}
 })
 
+function PlayerMovement:init()
+    -- Initialize any system-wide variables here
+end
+
 function PlayerMovement:update(dt)
-    for _, entity in ipairs(self.players) do
+    for _, entity in ipairs(self.pool) do
         local player = entity.player
         local position = entity.position
         local dimensions = entity.dimensions
@@ -238,7 +242,7 @@ function PlayerMovement:update(dt)
                         end
                         
                         -- Set speed based on running state
-                        local currentSpeed = player.isRunning and player.runSpeed or player.speed
+                        local currentSpeed = player.isRunning and Constants.PLAYER_RUN_SPEED or Constants.PLAYER_SPEED
                         
                         -- Apply movement
                         velocity.x = moveX * currentSpeed
@@ -252,7 +256,7 @@ function PlayerMovement:update(dt)
                     
                     -- Jumping (only if on ground or platform)
                     if player.controls.jump and controller.joystick:isGamepadDown(player.controls.jump) and (not player.isJumping or onPlatform) then
-                        velocity.y = -player.jumpForce
+                        velocity.y = -Constants.PLAYER_JUMP_FORCE
                         player.isJumping = true
                         logger:debug("Player %s jumped", player.name)
                     end
@@ -267,7 +271,7 @@ function PlayerMovement:update(dt)
                 
                 -- Apply gravity if not on platform
                 if not onPlatform then
-                    velocity.y = velocity.y + player.gravity * dt
+                    velocity.y = velocity.y + Constants.PLAYER_GRAVITY * dt
                 end
                 
                 -- Update position based on velocity

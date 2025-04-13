@@ -6,7 +6,7 @@ local Constants = require("constants")
 local Position = require("src.components.position")
 local Velocity = require("src.components.velocity")
 local Dimensions = require("src.components.dimensions")
-local Player = require("src.components.basePlayer")
+local Player = require("src.components.player")
 local Box = require("src.components.box")
 local Controller = require("src.components.controller")
 local Animation = require("src.components.animation")
@@ -21,6 +21,7 @@ local Rendering = require("src.systems.rendering")
 local PlatformManager = require("src.systems.platform_manager")
 local PlatformRender = require("src.systems.platform_render")
 local PlatformCollision = require("src.systems.platform_collision")
+local PlayerRender = require("src.systems.player_render")
 
 -- Create the ECS world
 local ECS = {
@@ -87,6 +88,7 @@ function ECS:registerSystems()
     self.world:addSystem(PlatformCollision)
     self.world:addSystem(Collision)
     self.world:addSystem(PlayerCombat)
+    self.world:addSystem(PlayerRender)
     self.world:addSystem(Rendering)
     self.world:addSystem(PlatformRender)
 end
@@ -136,7 +138,7 @@ function ECS:createPlayer(x, y, color, controls, joystick, isBot)
     entity:give("velocity", 0, 0)
     entity:give("dimensions", Constants.PLAYER_WIDTH, Constants.PLAYER_HEIGHT)
     entity:give("player", "Player", color, controls)
-    entity:give("controller", joystick, isBot)
+    entity:give("controller", joystick, isBot, controls)
     entity:give("animation", "idle", 1, 0)
     
     -- Set default character type if not specified
@@ -154,7 +156,7 @@ function ECS:createBox(x, y, meaning, speed, characterType, isPoop)
     -- Determine image path based on character type or if it's a poop
     local imagePath = ""
     if isPoop then
-        imagePath = "assets/falling-objects/poop.png"
+        imagePath = "assets/falling-objects/stinky.png"
     elseif characterType and characterType ~= "" then
         imagePath = "assets/falling-objects/" .. characterType .. ".png"
     end
